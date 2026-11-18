@@ -1,0 +1,262 @@
+<!-- admin/pages/requisicoes.html -->
+<style>
+    .table-scroll-wrapper { max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 4px; }
+    .table-scroll-wrapper table { width: 100%; border-collapse: collapse; text-align: left; }
+    .table-scroll-wrapper thead th { position: sticky; top: 0; background: #f1f5f9; z-index: 10; border-bottom: 1px solid #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .table-scroll-wrapper tbody tr { border-bottom: 1px solid #f1f5f9; }
+
+    /* Estilo Específico para Fixar o Modal de Consulta */
+    .modal-box.fixed-size {
+        height: 550px; /* Altura Fixa */
+        display: flex;
+        flex-direction: column;
+    }
+    .modal-box.fixed-size .table-scroll-wrapper {
+        flex: 1; /* Faz a tabela ocupar todo o espaço restante */
+        max-height: none; 
+        border: none;
+    }
+</style>
+
+<div class="modulo-container" id="modulo-requisicoes">
+    <div class="modulo-header">
+        <div>
+            <h2>Requisição e Envio de Materiais</h2>
+            <p>SOLICITE SUPRIMENTOS, APROVE PEDIDOS E GERE GUIAS DE SEPARAÇÃO</p>
+        </div>
+        <button class="btn-novo-registro" id="btn-nova-req">
+            <div><i data-lucide="plus-circle"></i></div> Nova Requisição
+        </button>
+    </div>
+
+    <!-- Barra de Filtros Atualizada -->
+    <div class="filter-bar">
+        <div class="filter-input-wrapper">
+            <select class="filter-select" id="filtro-campo">
+                <option value="codigo">N.º Req</option>
+                <option value="requisitanteNome" selected>Solicitante (Destino)</option>
+                <option value="abastecedorNome">Abastecedor (Origem)</option>
+                <option value="status">Status</option>
+                <option value="data">Data de Criação</option>
+            </select>
+            
+            <div class="input-with-checkbox filtro-input-dinamico" id="wrapper-texto">
+                <input type="text" id="filtro-valor-texto" class="filter-input input-upper" placeholder="Buscar... (Pressione Enter)">
+                <label class="checkbox-label" id="lbl-filtro-exato"><input type="checkbox" id="filtro-exato"> <span>EXATO</span></label>
+            </div>
+            
+            <select id="filtro-valor-status" class="filter-input filtro-input-dinamico" style="display: none; cursor:pointer;">
+                <option value="PENDENTE">PENDENTE</option>
+                <option value="APROVADA">APROVADA</option>
+                <option value="ENVIADA">ENVIADA</option>
+                <option value="CONCLUIDA">CONCLUÍDA</option>
+                <option value="REJEITADA">REJEITADA</option>
+            </select>
+
+            <input type="date" id="filtro-valor-data" class="filter-input filtro-input-dinamico" style="display: none;">
+        </div>
+        
+        <div style="display: flex; gap: 8px;">
+            <button class="filter-btn add" id="btn-add-filtro"><i data-lucide="list-plus"></i> Adicionar Filtro</button>
+            <button class="filter-btn apply" id="btn-aplicar-filtro"><i data-lucide="check"></i> Aplicar Filtro</button>
+            <button class="filter-btn clear" id="btn-limpar-filtros"><i data-lucide="eraser"></i> Limpar Filtros</button>
+        </div>
+    </div>
+
+    <div class="active-filters-area">
+        <div class="tabela-info-bar">
+            <span>EXIBINDO <span id="lbl-total-exibidos">0</span> DE <span id="lbl-total-geral">0</span> REGISTROS</span>
+        </div>
+        <div class="tags-dropdown-wrapper">
+            <i data-lucide="filter" style="width: 12px; height: 12px; color: #64748b;"></i>
+            <span class="filters-label" id="lbl-filtros-ativos">Nenhum filtro aplicado</span>
+            <div class="tags-container" id="container-tags-inline"></div>
+        </div>
+    </div>
+
+    <!-- Tabela Principal Unificada -->
+    <div class="table-scroll-wrapper" style="max-height: calc(100vh - 350px);">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th class="sort-col" data-col="codigo" style="width: 90px; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>N.º Req <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="requisitanteNome" style="padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Solicitante (Destino) <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="abastecedorNome" style="padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Abastecedor (Origem) <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="criado_em" style="width: 120px; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Data <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="status" style="width: 120px; text-align: center; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Status <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th style="text-align: center; width: 220px; padding: 0.8rem; background: var(--cnx-blue); color: white;">Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-requisicoes">
+                <tr><td colspan="6" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- MODAL PRINCIPAL: FORMULÁRIO DE REQUISIÇÃO -->
+    <div class="modal-overlay" id="modal-req" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); z-index: 9999; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 900px; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden;">
+            
+            <div class="modal-header" style="background: var(--cnx-blue); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <h3 id="modal-titulo-req" style="margin: 0; color: white; font-size: 1.1rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="shopping-cart" style="color: var(--cnx-orange); width: 20px;"></i> <span>Requisição de Materiais</span>
+                </h3>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span id="badge-status-modal"></span>
+                    <button class="btn-close-modal" id="btn-fechar-req" style="background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer;"><i data-lucide="x"></i></button>
+                </div>
+            </div>
+
+            <!-- Abas (Sempre visíveis) -->
+            <div style="display: flex; background: #f8fafc; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; overflow-x: auto;">
+                <button class="tab-form-btn active" data-target="form-tab-almox" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: var(--cnx-blue); border-bottom: 2px solid var(--cnx-orange); cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;"><i data-lucide="warehouse" style="width: 16px;"></i> 1 - Almoxarifados</button>
+                <button class="tab-form-btn" data-target="form-tab-prods" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;"><i data-lucide="package" style="width: 16px;"></i> 2 - Produtos</button>
+                <button class="tab-form-btn" data-target="form-tab-obs" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;"><i data-lucide="file-text" style="width: 16px;"></i> 3 - Observações</button>
+                <button class="tab-form-btn" data-target="form-tab-users" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;"><i data-lucide="users" style="width: 16px;"></i> 4 - Resp. e Faturamento</button>
+            </div>
+            
+            <div class="modal-content-scroll" style="padding: 1.5rem; flex: 1; overflow-y: auto; background: white;">
+                
+                <!-- ABA 1: ALMOXARIFADOS -->
+                <div id="form-tab-almox" class="tab-form-content" style="display: block;">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Solicitante (Destino / Onde a mercadoria vai entrar) <span class="required">*</span></label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="req-requisitante-desc" class="input-standard" readonly placeholder="Selecione o almoxarifado destino..." style="flex: 1; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700; background: #f8fafc; cursor: pointer;">
+                            <input type="hidden" id="req-requisitante-id">
+                            <button type="button" id="btn-busca-almox-req" class="btn-acao-busca" style="background: var(--cnx-blue); color: white; border: none; padding: 0 1rem; border-radius: 4px; cursor: pointer; font-weight: 700;"><i data-lucide="search" style="width: 16px;"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Abastecedor (Origem / De onde a mercadoria vai sair)</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="req-abastecedor-desc" class="input-standard" readonly placeholder="Preenchido automaticamente..." style="width: 100%; padding: 0.6rem; border: 1px dashed #cbd5e1; border-radius: 4px; font-weight: 700; background: #f1f5f9; color: #64748b;">
+                            <input type="hidden" id="req-abastecedor-id">
+                            <button type="button" id="btn-busca-almox-abast" class="btn-acao-busca" style="display: none; background: var(--cnx-orange); color: white; border: none; padding: 0 1rem; border-radius: 4px; cursor: pointer; font-weight: 700;" title="Alterar Origem Manualmente (Acesso Gerencial)"><i data-lucide="search" style="width: 16px;"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ABA 2: PRODUTOS -->
+                <div id="form-tab-prods" class="tab-form-content" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1rem;">
+                        <div>
+                            <h4 style="margin: 0; font-size: 0.85rem; color: var(--cnx-blue);">Lista de Produtos</h4>
+                            <div style="font-size: 0.7rem; font-weight: 700; color: #64748b; margin-top: 4px;">
+                                Itens Diferentes: <span id="lbl-total-tipos" style="color:var(--cnx-orange);">0</span> | 
+                                Quantidade Total: <span id="lbl-soma-geral" style="color:var(--cnx-orange);">0</span> und.
+                            </div>
+                        </div>
+                        <button type="button" id="btn-busca-produto" style="background: var(--cnx-orange); color: white; border: none; padding: 0.4rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: 6px; font-size: 0.75rem;"><i data-lucide="search" style="width: 14px;"></i> Buscar Produtos</button>
+                    </div>
+
+                    <div class="table-scroll-wrapper" style="max-height: 250px;">
+                        <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.8rem;">
+                            <thead>
+                                <tr>
+                                    <th style="padding: 0.6rem; width: 90px; color: #334155;">Código</th>
+                                    <th style="padding: 0.6rem; color: #334155;">Produto</th>
+                                    <th style="padding: 0.6rem; text-align: center; width: 100px; color: #0284c7;" title="Quantidade solicitada na origem">Qtd Solic.</th>
+                                    <th style="padding: 0.6rem; text-align: center; width: 100px; color: #16a34a; display: none;" class="col-aprov" title="Qtd Aprovada / Enviada">Qtd Aprovada</th>
+                                    <th style="padding: 0.6rem; text-align: center; width: 100px; color: #7e22ce; display: none;" class="col-receb" title="Qtd Recebida no destino">Qtd Recebida</th>
+                                    <th style="padding: 0.6rem; text-align: center; width: 60px;" class="col-acao">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-itens-req">
+                                <tr><td colspan="6" style="text-align: center; padding: 1.5rem; color: #94a3b8;">Nenhum produto adicionado.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="font-size: 0.65rem; color: #64748b; margin-top: 4px;">* Edite a quantidade escrevendo diretamente na coluna.</div>
+                </div>
+
+                <!-- ABA 3: OBSERVAÇÕES -->
+                <div id="form-tab-obs" class="tab-form-content" style="display: none;">
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Observações / Justificativa da Solicitação</label>
+                        <textarea id="req-obs" class="input-standard input-upper" rows="4" placeholder="Insira o motivo da requisição ou detalhes adicionais..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; outline: none;"></textarea>
+                    </div>
+                </div>
+
+                <!-- ABA 4: RESPONSÁVEIS E FATURAMENTO -->
+                <div id="form-tab-users" class="tab-form-content" style="display: none;">
+                    
+                    <div style="background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                        <h4 style="margin: 0 0 1rem 0; font-size: 0.8rem; color: #7e22ce; display: flex; align-items: center; gap: 6px;"><i data-lucide="truck" style="width: 16px;"></i> Informações de Expedição e Faturamento</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label style="font-size: 0.7rem; font-weight: 800; color: #4c1d95; text-transform: uppercase;">N.º do Pedido (Faturamento ERP)</label>
+                                <input type="text" id="req-num-pedido" class="input-standard input-upper" placeholder="Ex: PED-12345" style="width: 100%; padding: 0.6rem; border: 1px solid #d8b4fe; border-radius: 4px; font-weight: 700; color: #4c1d95;">
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.7rem; font-weight: 800; color: #4c1d95; text-transform: uppercase;">Dados do Transporte</label>
+                                <input type="text" id="req-dados-envio" class="input-standard input-upper" placeholder="Motorista, Placa ou Data/Hora" style="width: 100%; padding: 0.6rem; border: 1px solid #d8b4fe; border-radius: 4px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+                        <div>
+                            <div style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Usuário Solicitante (Criação do Pedido)</div>
+                            <div id="lbl-user-solicitante" style="font-weight: 700; color: var(--cnx-blue); font-size: 0.9rem; display: flex; align-items: center; gap: 8px; margin-top: 4px;"><i data-lucide="user" style="width: 16px;"></i> <span>Registro pendente...</span></div>
+                        </div>
+                        <hr style="border: none; border-top: 1px dashed #cbd5e1; margin: 0;">
+                        <div>
+                            <div style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Usuário Atendente (Aprovação / Envio)</div>
+                            <div id="lbl-user-atendente" style="font-weight: 700; color: var(--cnx-orange); font-size: 0.9rem; display: flex; align-items: center; gap: 8px; margin-top: 4px;"><i data-lucide="user-check" style="width: 16px;"></i> <span>Aguardando atendimento...</span></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            
+            <div class="modal-footer" id="modal-req-footer" style="padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px; background: #f8fafc;">
+                <!-- Botões dinâmicos -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONSULTA (LUPA) C/ TAMANHO FIXO E ROLAGEM -->
+    <div class="modal-overlay" id="modal-consulta" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 10000; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="modal-box fixed-size" style="background: white; border-radius: 8px; width: 100%; max-width: 650px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); overflow: hidden;">
+            <div class="modal-header" style="background: #f1f5f9; padding: 1rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                <h3 id="titulo-consulta" style="margin: 0; color: var(--cnx-blue); font-size: 1rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="search" style="color: var(--cnx-orange); width: 18px;"></i> <span>Consulta</span>
+                </h3>
+                <button class="btn-close-modal" id="btn-fechar-consulta" style="background: none; border: none; color: #64748b; cursor: pointer;"><i data-lucide="x"></i></button>
+            </div>
+            <div style="padding: 1rem; background: white; border-bottom: 1px solid #e2e8f0;">
+                <input type="text" id="input-busca-consulta" class="input-standard input-upper" placeholder="Digite Código ou Descrição para buscar..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 600;">
+            </div>
+            <div class="table-scroll-wrapper">
+                <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.8rem;">
+                    <thead style="background: #f8fafc; color: #64748b;">
+                        <tr id="thead-consulta"></tr>
+                    </thead>
+                    <tbody id="tbody-consulta"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE AÇÕES DO ANEXO/IMPRESSÃO (Novo) -->
+    <div class="modal-overlay" id="modal-anexo-req" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 10600; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 350px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); overflow: hidden;">
+            <div style="background: var(--cnx-blue); padding: 1rem; color: white; font-weight: 800; font-size: 1rem; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="file-signature" style="color: var(--cnx-orange); width: 18px;"></i> <span>Ficha de Separação</span>
+                </div>
+                <button onclick="document.getElementById('modal-anexo-req').style.display='none'" style="background:none; border:none; color:white; cursor:pointer;"><i data-lucide="x" style="width:16px;"></i></button>
+            </div>
+            
+            <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 10px;" id="acoes-anexo-req-container">
+                <!-- Injetado via JS -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Input oculto para carregar ficheiros (Requisições) -->
+    <input type="file" id="input-upload-pdf-req" accept="application/pdf" style="display: none;">
+
+</div>

@@ -1,0 +1,201 @@
+<!-- admin/pages/usuarios.html -->
+<div class="modulo-container" id="modulo-usuarios">
+    <div class="modulo-header">
+        <div>
+            <h2>Gestão de Usuários e Permissões</h2>
+            <p>Cadastre colaboradores, vincule almoxarifados múltiplos e configure perfis de acesso</p>
+        </div>
+        <button class="btn-novo-registro" id="btn-novo-usuario">
+            <div><i data-lucide="users"></i></div> Novo Usuário
+        </button>
+    </div>
+
+    <!-- Barra de Filtros -->
+    <div class="filter-bar">
+        <div class="filter-input-wrapper">
+            <select class="filter-select" id="filtro-campo">
+                <option value="nome_completo">Nome</option>
+                <option value="cargoNome">Cargo</option>
+                <option value="almoxarifadosNomes">Almoxarifado</option>
+                <option value="ativo">Status</option>
+            </select>
+
+            <div class="input-with-checkbox filtro-input-dinamico" id="container-filtro-dinamico">
+                <input type="text" id="filtro-valor-texto" class="filter-input input-upper" placeholder="Buscar... (Pressione Enter)">
+                <label class="checkbox-label" id="lbl-filtro-exato">
+                    <input type="checkbox" id="filtro-exato"> <span>EXATO</span>
+                </label>
+                
+                <select id="filtro-valor-status" class="filter-input filtro-input-dinamico" style="display:none; cursor:pointer;">
+                    <option value="true">ATIVO</option>
+                    <option value="false">INATIVO</option>
+                </select>
+                
+                <select id="filtro-valor-almox" class="filter-input filtro-input-dinamico" style="display:none; cursor:pointer;">
+                    <option value="">Carregando...</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+            <button class="filter-btn add" id="btn-add-filtro"><i data-lucide="list-plus"></i> Adicionar Filtro</button>
+            <button class="filter-btn apply" id="btn-aplicar-filtro"><i data-lucide="check"></i> Aplicar Filtro</button>
+            <button class="filter-btn clear" id="btn-limpar-filtros"><i data-lucide="eraser"></i> Limpar Filtros</button>
+        </div>
+    </div>
+
+    <!-- Área de Tags de Filtros Ativos -->
+    <div class="active-filters-area">
+        <div class="tabela-info-bar">
+            <span>EXIBINDO <span id="lbl-total-exibidos">0</span> DE <span id="lbl-total-geral">0</span> REGISTROS</span>
+        </div>
+        
+        <div class="tags-dropdown-wrapper">
+            <i data-lucide="filter" style="width: 12px; height: 12px; color: #64748b;"></i>
+            <span class="filters-label" id="lbl-filtros-ativos">Nenhum filtro aplicado</span>
+            
+            <div class="tags-container" id="container-tags-inline"></div>
+            
+            <button class="btn-more-tags" id="btn-toggle-tags" style="display: none;">
+                +<span id="lbl-tags-extra">0</span> <i data-lucide="chevron-down" style="width: 12px; margin-left: 2px;"></i>
+            </button>
+            <div class="tags-dropdown" id="dropdown-tags" style="display: none;">
+                <div class="tags-dropdown-header">
+                    Filtros Aplicados
+                    <i data-lucide="x" style="width: 14px; height: 14px; cursor: pointer; color: #94a3b8;" onclick="document.getElementById('dropdown-tags').style.display='none'"></i>
+                </div>
+                <div class="tags-dropdown-content" id="container-tags-dropdown"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela Principal -->
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th class="sort-col" data-col="nome_completo"><div>Nome Completo <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="cargoNome"><div>Cargo <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="almoxarifadosNomes"><div>Almoxarifado(s) Vinculado(s) <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" style="text-align: center; width: 100px;" data-col="ativo"><div>Status <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th style="text-align: center; width: 140px;">Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tabela-usuarios-body">
+                <tr><td colspan="5" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- MODAL DE CADASTRO/EDIÇÃO -->
+    <div id="modal-usuario" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); z-index: 9999; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 800px; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden;">
+            
+            <div class="modal-header">
+                <h3 id="modal-titulo"><i data-lucide="users"></i> <span>Cadastrar Novo Usuário</span></h3>
+                <button class="btn-close-modal" id="btn-fechar-modal"><i data-lucide="x"></i></button>
+            </div>
+            
+            <!-- Abas do Modal -->
+            <div style="display: flex; background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 0 1.5rem; flex-shrink: 0;">
+                <button class="tab-btn active" data-target="tab-dados" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: var(--cnx-blue); border-bottom: 2px solid var(--cnx-orange); cursor: pointer;">Dados do Usuário</button>
+                <button class="tab-btn" data-target="tab-almoxarifados" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; display: flex; align-items: center; gap: 6px;"><i data-lucide="warehouse" style="width: 14px;"></i> Almoxarifados Vinculados</button>
+                <button class="tab-btn" data-target="tab-avatar" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; display: flex; align-items: center; gap: 6px;"><i data-lucide="image" style="width: 14px;"></i> Avatar</button>
+                <button class="tab-btn" data-target="tab-permissoes" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; display: flex; align-items: center; gap: 6px;"><i data-lucide="shield" style="width: 14px;"></i> Matriz de Permissões</button>
+            </div>
+
+            <div class="modal-content-scroll">
+                <!-- ABA: DADOS -->
+                <div id="tab-dados" class="tab-content" style="display: block;">
+                    <div class="form-group">
+                        <label>Nome Completo <span class="required">*</span></label>
+                        <input type="text" id="usr-nome" class="input-standard input-upper" placeholder="NOME DO COLABORADOR">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>E-mail (Login) <span class="required">*</span></label>
+                            <input type="email" id="usr-email" class="input-standard" style="font-weight: 600;" placeholder="email@empresa.com">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0; position: relative;">
+                            <label>Senha Provisória <span class="required">*</span></label>
+                            <input type="password" id="usr-senha" class="input-standard" style="padding-right: 2rem; font-weight: 600;" placeholder="••••••••">
+                            <button type="button" id="btn-toggle-senha" style="position: absolute; right: 8px; top: 28px; background: none; border: none; cursor: pointer; color: #94a3b8;"><i data-lucide="eye-off" style="width: 16px;"></i></button>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Cargo / Perfil <span class="required">*</span></label>
+                            <select id="usr-cargo" class="input-standard" style="font-weight: 600; cursor: pointer;"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ABA: ALMOXARIFADOS -->
+                <div id="tab-almoxarifados" class="tab-content" style="display: none;">
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                            <span style="font-size: 0.75rem; font-weight: 800; color: var(--cnx-blue); display: flex; align-items: center; gap: 6px;"><i data-lucide="warehouse" style="color: var(--cnx-orange); width: 16px;"></i> VÍNCULO DE ALMOXARIFADOS</span>
+                            <label style="font-size: 0.75rem; font-weight: 700; color: var(--cnx-blue); cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="usr-acesso-todos" style="accent-color: var(--cnx-orange); cursor: pointer;"> Acesso a Todos (Gestão)
+                            </label>
+                        </div>
+                        <div id="container-tabela-vinculos" style="max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 4px; background: white;">
+                            <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.75rem;">
+                                <thead style="background: var(--cnx-blue); color: white; position: sticky; top: 0;">
+                                    <tr><th style="padding: 0.5rem; text-align: center;">Sel.</th><th style="padding: 0.5rem;">Código</th><th style="padding: 0.5rem;">Descrição</th></tr>
+                                </thead>
+                                <tbody id="tabela-vinculos-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ABA: AVATAR -->
+                <div id="tab-avatar" class="tab-content" style="display: none;">
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2rem; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1rem;">
+                        <div style="width: 100px; height: 100px; border-radius: 50%; background: #e2e8f0; border: 2px dashed #94a3b8; display: flex; align-items: center; justify-content: center; overflow: hidden;" id="avatar-preview-container">
+                            <i data-lucide="users" style="width: 40px; height: 40px; color: #94a3b8;"></i>
+                        </div>
+                        <div>
+                            <input type="file" id="usr-avatar-file" accept="image/*" style="display: none;">
+                            <button type="button" id="btn-upload-avatar" class="btn-save" style="margin: 0 auto;">
+                                <i data-lucide="upload" style="width: 16px; color: var(--cnx-orange);"></i> Selecionar Arquivo do PC
+                            </button>
+                            <div id="avatar-nome-arquivo" style="margin-top: 0.5rem; font-size: 0.75rem; font-weight: 600; color: #15803d; display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ABA: PERMISSÕES -->
+                <div id="tab-permissoes" class="tab-content" style="display: none;">
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 1rem;">
+                        <div style="display: flex; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                            <span style="font-size: 0.75rem; font-weight: 800; color: var(--cnx-blue); display: flex; align-items: center; gap: 6px;"><i data-lucide="shield" style="color: var(--cnx-orange); width: 16px;"></i> PRIVILÉGIOS DO CARGO</span>
+                        </div>
+                        <div id="permissoes-aviso" style="font-size: 0.8rem; color: #b45309; font-weight: 600; display: none;">Selecione um Cargo na aba "Dados do Usuário" para configurar.</div>
+                        <div id="container-permissoes" style="border: 1px solid #e2e8f0; border-radius: 4px; background: white; overflow: hidden;">
+                            <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.75rem;">
+                                <thead style="background: var(--cnx-blue); color: white;">
+                                    <tr>
+                                        <th style="padding: 0.5rem;">Módulo / Tela</th>
+                                        <th style="padding: 0.5rem; text-align: center;">Visualizar</th>
+                                        <th style="padding: 0.5rem; text-align: center;">Criar</th>
+                                        <th style="padding: 0.5rem; text-align: center;">Editar</th>
+                                        <th style="padding: 0.5rem; text-align: center;">Inativar</th>
+                                        <th style="padding: 0.5rem; text-align: center; background: #001B3A;">Marcar Todos</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela-permissoes-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-cancel" id="btn-cancelar-modal">Cancelar</button>
+                <button class="btn-save" id="btn-salvar-usuario">
+                    <i data-lucide="save" style="width: 16px; color: var(--cnx-orange);"></i> <span id="lbl-salvar">Salvar Cadastro</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

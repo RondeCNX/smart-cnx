@@ -1,0 +1,146 @@
+<!-- admin/index.html -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart CNX - Gestão</title>
+    
+    <link rel="icon" href="../assets/imagens/icon.ico" type="image/x-icon">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="../css/global.css">
+    <link rel="stylesheet" href="../css/layout.css">
+    <link rel="stylesheet" href="../css/modal.css">
+    <link rel="stylesheet" href="../css/modulos.css">
+</head>
+<body class="bg-app-fundo">
+    
+    <div class="overlay-fundo"></div>
+
+    <div class="layout-wrapper">
+        <!-- CABEÇALHO SUPERIOR -->
+        <header class="top-header">
+            <div class="header-container">
+                <div class="logo-area">
+                    <img src="../assets/imagens/Logo.png" alt="Logo CNX">
+                    <span class="logo-text">CNX</span>
+                    <span class="logo-subtext">Telecom</span>
+                </div>
+                <nav class="main-nav">
+                    <div class="nav-item has-dropdown">
+                        <button class="nav-btn" onclick="toggleDropdown('menu-cadastros')">
+                            <i data-lucide="folder-kanban"></i> <span>Cadastros</span> <i data-lucide="chevron-down" class="chevron"></i>
+                        </button>
+                        <div class="dropdown-menu" id="menu-cadastros">
+                            <a href="#" onclick="navegarPara('produtos')"><i data-lucide="box"></i> Produtos</a>
+                            <a href="#" onclick="navegarPara('almoxarifados')"><i data-lucide="warehouse"></i> Almoxarifados</a>
+                            <a href="#" onclick="navegarPara('usuarios')"><i data-lucide="users"></i> Usuários</a>
+                        </div>
+                    </div>
+                    <div class="nav-item has-dropdown">
+                        <button class="nav-btn" onclick="toggleDropdown('menu-movimentacoes')">
+                            <i data-lucide="arrow-right-left"></i> <span>Movimentações</span> <i data-lucide="chevron-down" class="chevron"></i>
+                        </button>
+                        <div class="dropdown-menu wide" id="menu-movimentacoes">
+                            <a href="#" onclick="navegarPara('requisicoes')"><i data-lucide="truck"></i> Requisição e Envio de Materiais</a>
+                            <div class="divider"></div>
+                            <a href="#" onclick="navegarPara('emprestimos')"><i data-lucide="wrench"></i> Empréstimo de Equipamentos</a>
+                            <div class="divider"></div>
+                            <!-- AQUI ESTÃO OS DOIS NOVOS MENUS SEPARADOS -->
+                            <a href="#" onclick="navegarPara('coleta_mac')"><i data-lucide="cpu"></i> Coleta de MAC</a>
+                            <a href="#" onclick="navegarPara('ajuste_estoque')"><i data-lucide="layers"></i> Ajuste de Estoque</a>
+                        </div>
+                    </div>
+                    <!-- MENU DE INVENTÁRIO FOI REMOVIDO DAQUI -->
+                    <a href="#" class="nav-btn" onclick="navegarPara('relatorios')"><i data-lucide="bar-chart-2"></i> <span>Relatórios</span></a>
+                    <a href="#" class="nav-btn" onclick="navegarPara('configuracoes')"><i data-lucide="settings"></i> <span>Configurações</span></a>
+                    
+                    <button class="btn-logout" onclick="fazerLogout()">
+                        <i data-lucide="log-out"></i> <span>Sair</span>
+                    </button>
+                </nav>
+            </div>
+        </header>
+
+        <!-- MENU LATERAL OCULTO -->
+        <div class="sidebar-trigger"></div>
+        <aside class="sidebar-panel" id="sidebar-panel"></aside>
+
+        <!-- ÁREA CENTRAL DINÂMICA -->
+        <main id="app-content" class="main-content">
+            <div id="app-content-inner">
+                <div class="loader-inicial">
+                    <i data-lucide="loader-2" class="lucide-spin"></i> Carregando painel...
+                </div>
+            </div>
+        </main>
+
+        <!-- RODAPÉ -->
+        <footer class="bottom-footer">
+            <div class="footer-container">
+                <div class="user-profile-bar">
+                    <div class="avatar-mini" id="layout-avatar">
+                        <i data-lucide="user"></i>
+                    </div>
+                    <div class="user-info-text">
+                        <span id="layout-nome-usuario" class="user-name">Carregando...</span>
+                        <span class="user-role-divider">Perfil: <strong id="layout-cargo-usuario">...</strong></span>
+                    </div>
+                </div>
+                <div class="nav-item has-dropdown filter-up">
+                    <button class="btn-filtro-almox" onclick="toggleDropdown('menu-filtro-almox')">
+                        <i data-lucide="warehouse" class="icon-orange"></i> 
+                        <span id="label-filtro-almox">Todos os Almoxarifados</span>
+                    </button>
+                    <div class="dropdown-menu dropdown-up" id="menu-filtro-almox">
+                        <div class="filtro-header">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="chk-todos-almox" checked onchange="toggleTodosAlmoxarifados(this)">
+                                <span>Todos os Almoxarifados</span>
+                            </label>
+                        </div>
+                        <div class="filtro-lista" id="lista-almoxarifados"></div>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- POP-UP GLOBAL PERSONALIZADO -->
+    <div id="global-popup" class="custom-popup-overlay">
+        <div class="custom-popup-box">
+            <div id="popup-icon" class="popup-icon-wrapper info"><i data-lucide="info"></i></div>
+            <h3 id="popup-title" class="popup-title">Atenção</h3>
+            <p id="popup-message" class="popup-message">Mensagem de aviso.</p>
+            <div class="popup-actions">
+                <button id="popup-btn-cancel" class="popup-btn cancel">Cancelar</button>
+                <button id="popup-btn-confirm" class="popup-btn confirm">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- POP-UP GLOBAL DE HISTÓRICO -->
+    <div id="global-historico-modal" class="custom-popup-overlay">
+        <div class="custom-popup-box" style="max-width: 700px; padding: 0; display: flex; flex-direction: column; max-height: 85vh; width: 95%;">
+            <div style="background: var(--cnx-blue); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-radius: 12px 12px 0 0; flex-shrink: 0;">
+                <h3 style="color: white; font-size: 1.1rem; font-weight: 800; display: flex; align-items: center; gap: 8px; margin: 0;">
+                    <i data-lucide="history" style="color: var(--cnx-orange); width: 20px;"></i> Histórico de Alterações
+                </h3>
+                <button onclick="document.getElementById('global-historico-modal').classList.remove('show')" style="background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.7)'"><i data-lucide="x"></i></button>
+            </div>
+            <div style="padding: 1.5rem; overflow-y: auto; flex: 1; background: #f8fafc; text-align: left;" id="historico-content">
+                <!-- Injetado dinamicamente -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts do Sistema -->
+    <script src="../config.js"></script>
+    <script src="js/admin.js?v=2.0"></script>
+</body>
+</html>

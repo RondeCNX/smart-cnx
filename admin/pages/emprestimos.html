@@ -1,0 +1,235 @@
+<!-- admin/pages/emprestimos.html -->
+<style>
+    .table-scroll-wrapper { max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 4px; }
+    .table-scroll-wrapper table { width: 100%; border-collapse: collapse; text-align: left; }
+    .table-scroll-wrapper thead th { position: sticky; top: 0; background: #f1f5f9; z-index: 10; border-bottom: 1px solid #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .table-scroll-wrapper tbody tr { border-bottom: 1px solid #f1f5f9; }
+
+    .modal-box.fixed-size { height: 550px; display: flex; flex-direction: column; }
+    .modal-box.fixed-size .table-scroll-wrapper { flex: 1; max-height: none; border: none; }
+</style>
+
+<div class="modulo-container" id="modulo-emprestimos">
+    <div class="modulo-header">
+        <div>
+            <h2>Controle de Empréstimos</h2>
+            <p>REGISTE A SAÍDA E DEVOLUÇÃO DE EQUIPAMENTOS PARA TERCEIROS E TÉCNICOS</p>
+        </div>
+        <button class="btn-novo-registro" id="btn-novo-emp">
+            <div><i data-lucide="plus-circle"></i></div> Novo Empréstimo
+        </button>
+    </div>
+
+    <div class="filter-bar">
+        <div class="filter-input-wrapper">
+            <select class="filter-select" id="filtro-campo">
+                <option value="codigo">N.º Emp</option>
+                <option value="responsavel" selected>Responsável</option>
+                <option value="equipamentosBusca">Equipamento</option>
+                <option value="status">Status</option>
+                <option value="data_emprestimo">Data de Abertura</option>
+                <option value="data_devolucao">Data de Devolução</option>
+            </select>
+            
+            <div class="input-with-checkbox filtro-input-dinamico" id="wrapper-texto">
+                <input type="text" id="filtro-valor-texto" class="filter-input input-upper" placeholder="Buscar... (Pressione Enter)">
+                <label class="checkbox-label" id="lbl-filtro-exato"><input type="checkbox" id="filtro-exato"> <span>EXATO</span></label>
+            </div>
+            
+            <select id="filtro-valor-status" class="filter-input filtro-input-dinamico" style="display: none; cursor:pointer;">
+                <option value="ATIVO">ATIVO (PENDENTE)</option>
+                <option value="DEVOLUCAO PARCIAL">DEVOLUÇÃO PARCIAL</option>
+                <option value="DEVOLVIDO">DEVOLVIDO</option>
+                <option value="ATRASADO">ATRASADO</option>
+                <option value="CANCELADO">CANCELADO</option>
+            </select>
+
+            <input type="date" id="filtro-valor-data" class="filter-input filtro-input-dinamico" style="display: none;">
+        </div>
+        
+        <div style="display: flex; gap: 8px;">
+            <button class="filter-btn add" id="btn-add-filtro"><i data-lucide="list-plus"></i> Adicionar Filtro</button>
+            <button class="filter-btn apply" id="btn-aplicar-filtro"><i data-lucide="check"></i> Aplicar Filtro</button>
+            <button class="filter-btn clear" id="btn-limpar-filtros"><i data-lucide="eraser"></i> Limpar Filtros</button>
+        </div>
+    </div>
+
+    <div class="active-filters-area">
+        <div class="tabela-info-bar">
+            <span>EXIBINDO <span id="lbl-total-exibidos">0</span> DE <span id="lbl-total-geral">0</span> REGISTROS</span>
+        </div>
+        <div class="tags-dropdown-wrapper">
+            <i data-lucide="filter" style="width: 12px; height: 12px; color: #64748b;"></i>
+            <span class="filters-label" id="lbl-filtros-ativos">Nenhum filtro aplicado</span>
+            <div class="tags-container" id="container-tags-inline"></div>
+        </div>
+    </div>
+
+    <div class="table-scroll-wrapper" style="max-height: calc(100vh - 350px);">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th class="sort-col" data-col="codigo" style="width: 90px; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>N.º Emp <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="responsavel" style="padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Responsável <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="data_emprestimo" style="width: 120px; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Abertura <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="previsao_devolucao" style="width: 120px; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Previsão <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="statusCalculado" style="width: 120px; text-align: center; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Status <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th style="text-align: center; width: 150px; padding: 0.8rem; background: var(--cnx-blue); color: white;">Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-emprestimos">
+                <tr><td colspan="6" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- MODAL PRINCIPAL: FORMULÁRIO -->
+    <div class="modal-overlay" id="modal-emp" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); z-index: 9999; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 800px; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden;">
+            
+            <div class="modal-header" style="background: var(--cnx-blue); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <h3 id="modal-titulo-emp" style="margin: 0; color: white; font-size: 1.1rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="wrench" style="color: var(--cnx-orange); width: 20px;"></i> <span>Empréstimo de Material</span>
+                </h3>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span id="badge-status-modal"></span>
+                    <button class="btn-close-modal" id="btn-fechar-emp" style="background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer;"><i data-lucide="x"></i></button>
+                </div>
+            </div>
+
+            <!-- Abas -->
+            <div style="display: flex; background: #f8fafc; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; overflow-x: auto;">
+                <button class="tab-form-btn active" data-target="form-tab-dados" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: var(--cnx-blue); border-bottom: 2px solid var(--cnx-orange); cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;"><i data-lucide="file-text" style="width: 16px;"></i> 1 - Dados Gerais</button>
+                <button class="tab-form-btn" data-target="form-tab-prods" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;"><i data-lucide="package" style="width: 16px;"></i> 2 - Equipamentos</button>
+                <button class="tab-form-btn" data-target="form-tab-obs" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;"><i data-lucide="message-square" style="width: 16px;"></i> 3 - Observações</button>
+            </div>
+            
+            <div class="modal-content-scroll" style="padding: 1.5rem; flex: 1; overflow-y: auto; background: white;">
+                
+                <!-- ABA 1: DADOS -->
+                <div id="form-tab-dados" class="tab-form-content" style="display: block;">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Almoxarifado (De Onde Saiu) <span class="required">*</span></label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="emp-almox-desc" class="input-standard" readonly placeholder="Selecione o almoxarifado..." style="flex: 1; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700; background: #f8fafc; cursor: pointer;">
+                            <input type="hidden" id="emp-almox-id">
+                            <button type="button" id="btn-busca-almox" class="btn-acao-busca" style="background: var(--cnx-blue); color: white; border: none; padding: 0 1rem; border-radius: 4px; cursor: pointer; font-weight: 700;"><i data-lucide="search" style="width: 16px;"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Responsável pelo Empréstimo (Terceiro, Técnico, etc) <span class="required">*</span></label>
+                        <input type="text" id="emp-responsavel" class="input-standard input-upper" placeholder="Nome de quem vai levar o material..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700;">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Data de Saída <span class="required">*</span></label>
+                            <input type="date" id="emp-data-saida" class="input-standard" style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 600;">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-orange); text-transform: uppercase;">Previsão de Devolução</label>
+                            <input type="date" id="emp-data-prev" class="input-standard" style="width: 100%; padding: 0.6rem; border: 1px dashed var(--cnx-orange); border-radius: 4px; font-weight: 600;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ABA 2: EQUIPAMENTOS -->
+                <div id="form-tab-prods" class="tab-form-content" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1rem;">
+                        <div>
+                            <h4 style="margin: 0; font-size: 0.85rem; color: var(--cnx-blue);">Equipamentos / Materiais</h4>
+                        </div>
+                        <button type="button" id="btn-busca-produto" style="background: var(--cnx-orange); color: white; border: none; padding: 0.4rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: 6px; font-size: 0.75rem;"><i data-lucide="search" style="width: 14px;"></i> Buscar Itens</button>
+                    </div>
+
+                    <div class="table-scroll-wrapper" style="max-height: 250px;">
+                        <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.8rem;">
+                            <thead>
+                                <tr>
+                                    <th style="padding: 0.6rem; width: 90px; color: #334155;">Código</th>
+                                    <th style="padding: 0.6rem; color: #334155;">Equipamento</th>
+                                    <th style="padding: 0.6rem; text-align: center; width: 100px; color: #0284c7;" title="Quantidade Emprestada">Qtd Saída</th>
+                                    <th style="padding: 0.6rem; text-align: center; width: 100px; color: #16a34a; display: none;" class="col-devolv" title="Quantidade Devolvida">Qtd Devolvida</th>
+                                    <th style="padding: 0.6rem; text-align: center; width: 60px;" class="col-acao">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-itens-emp">
+                                <tr><td colspan="5" style="text-align: center; padding: 1.5rem; color: #94a3b8;">Nenhum item adicionado.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="hint-edicao-qtd" style="font-size: 0.65rem; color: #64748b; margin-top: 4px;">* Edite a quantidade escrevendo diretamente na coluna.</div>
+                </div>
+
+                <!-- ABA 3: OBSERVAÇÕES -->
+                <div id="form-tab-obs" class="tab-form-content" style="display: none;">
+                    <div class="form-group">
+                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Observações Adicionais</label>
+                        <textarea id="emp-obs" class="input-standard input-upper" rows="4" placeholder="Estado de conservação, motivos, etc..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; outline: none;"></textarea>
+                    </div>
+                    
+                    <div id="painel-devolucao" style="display: none; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 1rem; margin-top: 1rem;">
+                        <h4 style="margin: 0 0 1rem 0; font-size: 0.8rem; color: #065f46; display: flex; align-items: center; gap: 6px;"><i data-lucide="check-circle" style="width: 16px;"></i> Informações de Devolução</h4>
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label style="font-size: 0.7rem; font-weight: 800; color: #065f46; text-transform: uppercase;">Data Efetiva de Devolução</label>
+                            <input type="date" id="emp-data-devolucao" class="input-standard" style="width: 50%; padding: 0.6rem; border: 1px solid #a7f3d0; border-radius: 4px; font-weight: 600;">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size: 0.7rem; font-weight: 800; color: #065f46; text-transform: uppercase;">Observações da Devolução (Avarias, motivos, etc)</label>
+                            <textarea id="emp-obs-devolucao" class="input-standard input-upper" rows="2" placeholder="Opcional. Insira observações sobre o recebimento..." style="width: 100%; padding: 0.6rem; border: 1px solid #a7f3d0; border-radius: 4px; outline: none;"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            
+            <div class="modal-footer" id="modal-emp-footer" style="padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px; background: #f8fafc;">
+                <!-- Botões dinâmicos -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONSULTA (LUPA) C/ TAMANHO FIXO -->
+    <div class="modal-overlay" id="modal-consulta" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 10000; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="modal-box fixed-size" style="background: white; border-radius: 8px; width: 100%; max-width: 650px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); overflow: hidden;">
+            <div class="modal-header" style="background: #f1f5f9; padding: 1rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                <h3 id="titulo-consulta" style="margin: 0; color: var(--cnx-blue); font-size: 1rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="search" style="color: var(--cnx-orange); width: 18px;"></i> <span>Consulta</span>
+                </h3>
+                <button class="btn-close-modal" id="btn-fechar-consulta" style="background: none; border: none; color: #64748b; cursor: pointer;"><i data-lucide="x"></i></button>
+            </div>
+            <div style="padding: 1rem; background: white; border-bottom: 1px solid #e2e8f0;">
+                <input type="text" id="input-busca-consulta" class="input-standard input-upper" placeholder="Digite Código ou Descrição para buscar..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 600;">
+            </div>
+            <div class="table-scroll-wrapper">
+                <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.8rem;">
+                    <thead style="background: #f8fafc; color: #64748b;">
+                        <tr id="thead-consulta"></tr>
+                    </thead>
+                    <tbody id="tbody-consulta"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE AÇÕES DO ANEXO/IMPRESSÃO -->
+    <div class="modal-overlay" id="modal-anexo-emp" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 10600; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 350px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); overflow: hidden;">
+            <div style="background: var(--cnx-blue); padding: 1rem; color: white; font-weight: 800; font-size: 1rem; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="file-signature" style="color: var(--cnx-orange); width: 18px;"></i> <span>Ficha de Empréstimo</span>
+                </div>
+                <button onclick="document.getElementById('modal-anexo-emp').style.display='none'" style="background:none; border:none; color:white; cursor:pointer;"><i data-lucide="x" style="width:16px;"></i></button>
+            </div>
+            
+            <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 10px;" id="acoes-anexo-container">
+                <!-- Injetado via JS -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Input oculto para carregar ficheiros -->
+    <input type="file" id="input-upload-pdf" accept="application/pdf" style="display: none;">
+    
+</div>

@@ -1,0 +1,170 @@
+<div class="modulo-container" id="modulo-produtos">
+    <div class="modulo-header">
+        <div>
+            <h2>Gestão de Produtos e Equipamentos</h2>
+            <p>GERENCIE O CADASTRO DE EQUIPAMENTOS, MATERIAIS DE REDE E ITENS DE CONSUMO</p>
+        </div>
+        <button class="btn-novo-registro" id="btn-novo-produto">
+            <div><i data-lucide="package-plus"></i></div> Novo Registro
+        </button>
+    </div>
+
+    <!-- Barra de Filtros -->
+    <div class="filter-bar">
+        <div class="filter-input-wrapper">
+            <select class="filter-select" id="filtro-campo">
+                <option value="codigo">Código</option>
+                <option value="descricao" selected>Descrição</option>
+                <option value="tipo">Tipo</option>
+                <option value="unidade_medida">Unidade de Medida</option>
+                <option value="status">Status</option>
+            </select>
+
+            <div class="input-with-checkbox filtro-input-dinamico" id="wrapper-texto">
+                <input type="text" id="filtro-valor-texto" class="filter-input input-upper" placeholder="Buscar... (Pressione Enter)">
+                <label class="checkbox-label" id="lbl-filtro-exato"><input type="checkbox" id="filtro-exato"> <span>EXATO</span></label>
+            </div>
+            
+            <select id="filtro-valor-tipo" class="filter-input filtro-input-dinamico" style="display: none; cursor:pointer;">
+                <option value="PRODUTO">PRODUTO</option>
+                <option value="EQUIPAMENTO">EQUIPAMENTO</option>
+                <option value="CONSUMO">CONSUMO</option>
+            </select>
+            
+            <select id="filtro-valor-um" class="filter-input filtro-input-dinamico" style="display: none; cursor:pointer;">
+                <option value="UNIDADE">UNIDADE</option>
+                <option value="METRO">METRO</option>
+                <option value="ROLO">ROLO</option>
+                <option value="CAIXA">CAIXA</option>
+                <option value="PACOTE">PACOTE</option>
+                <option value="GALAO">GALÃO</option>
+                <option value="LITRO">LITRO</option>
+                <option value="PECA">PEÇA</option>
+                <option value="QUILOGRAMA">QUILOGRAMA</option>
+                <option value="CONJUNTO">CONJUNTO</option>
+                <option value="CENTO">CENTO</option>
+            </select>
+
+            <select id="filtro-valor-status" class="filter-input filtro-input-dinamico" style="display: none; cursor:pointer;">
+                <option value="ATIVO">ATIVO</option>
+                <option value="INATIVO">INATIVO</option>
+            </select>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+            <button class="filter-btn add" id="btn-add-filtro"><i data-lucide="list-plus"></i> Adicionar Filtro</button>
+            <button class="filter-btn apply" id="btn-aplicar-filtro"><i data-lucide="check"></i> Aplicar Filtro</button>
+            <button class="filter-btn clear" id="btn-limpar-filtros"><i data-lucide="eraser"></i> Limpar Filtros</button>
+        </div>
+    </div>
+
+    <!-- Área de Tags de Filtros Ativos -->
+    <div class="active-filters-area">
+        <div class="tabela-info-bar">
+            <span>EXIBINDO <span id="lbl-total-exibidos">0</span> DE <span id="lbl-total-geral">0</span> REGISTROS</span>
+        </div>
+        
+        <div class="tags-dropdown-wrapper">
+            <i data-lucide="filter" style="width: 12px; height: 12px; color: #64748b;"></i>
+            <span class="filters-label" id="lbl-filtros-ativos">Nenhum filtro aplicado</span>
+            
+            <div class="tags-container" id="container-tags-inline"></div>
+            
+            <button class="btn-more-tags" id="btn-toggle-tags" style="display: none;">
+                +<span id="lbl-tags-extra">0</span> <i data-lucide="chevron-down" style="width: 12px; margin-left: 2px;"></i>
+            </button>
+            <div class="tags-dropdown" id="dropdown-tags" style="display: none;">
+                <div class="tags-dropdown-header">
+                    Filtros Ativos
+                    <i data-lucide="x" style="width: 14px; height: 14px; cursor: pointer; color: #94a3b8;" onclick="document.getElementById('dropdown-tags').style.display='none'"></i>
+                </div>
+                <div class="tags-dropdown-content" id="container-tags-dropdown"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela Principal -->
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th class="sort-col" data-col="codigo"><div>Código <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="descricao"><div>Descrição <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="tipo"><div>Tipo <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="unidade_medida"><div>U.M. <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" style="text-align: center; width: 100px;" data-col="status"><div>Status <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th style="text-align: center; width: 140px;">Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tabela-produtos-body">
+                <tr><td colspan="6" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- MODAL NOVO/EDITAR PRODUTO -->
+    <div class="modal-overlay" id="modal-produto" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); z-index: 9999; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 700px; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden;">
+            
+            <div class="modal-header" style="background: var(--cnx-blue, #002B5B); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <h3 id="modal-titulo" style="margin: 0; color: white; font-size: 1.1rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="package-plus" style="color: var(--cnx-orange, #F26522); width: 20px;"></i> <span>Novo Produto</span>
+                </h3>
+                <button class="btn-close-modal" id="btn-fechar-modal" style="background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer; display: flex; align-items: center; justify-content: center;"><i data-lucide="x"></i></button>
+            </div>
+            
+            <div class="modal-content-scroll" style="padding: 1.5rem; flex: 1; overflow-y: auto; background: white; text-align: left;">
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue, #002B5B); text-transform: uppercase; display: block; margin-bottom: 0.3rem;">Código Interno</label>
+                    <input type="text" id="prod-codigo" class="input-standard input-upper" placeholder="Gerado automaticamente se vazio" maxlength="50" style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700; outline: none; color: var(--text-main, #334155);">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue, #002B5B); text-transform: uppercase; display: block; margin-bottom: 0.3rem;">Descrição do Item <span class="required" style="color: #ef4444;">*</span></label>
+                    <input type="text" id="prod-descricao" class="input-standard input-upper" placeholder="Ex: CABO DE FIBRA OPTICA DROP 1FO COMPACTO" required style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700; outline: none; color: var(--text-main, #334155);">
+                </div>
+
+                <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue, #002B5B); text-transform: uppercase; display: block; margin-bottom: 0.3rem;">Tipo <span class="required" style="color: #ef4444;">*</span></label>
+                        <select id="prod-tipo" class="input-standard" required style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 600; outline: none; color: var(--text-main, #334155);">
+                            <option value="" disabled selected>Selecione...</option>
+                            <option value="PRODUTO">PRODUTO</option>
+                            <option value="EQUIPAMENTO">EQUIPAMENTO</option>
+                            <option value="CONSUMO">CONSUMO</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue, #002B5B); text-transform: uppercase; display: block; margin-bottom: 0.3rem;">Unidade de Medida <span class="required" style="color: #ef4444;">*</span></label>
+                        <select id="prod-um" class="input-standard" required style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 600; outline: none; color: var(--text-main, #334155);">
+                            <option value="" disabled selected>Selecione...</option>
+                            <option value="UNIDADE">UNIDADE</option>
+                            <option value="METRO">METRO</option>
+                            <option value="ROLO">ROLO</option>
+                            <option value="CAIXA">CAIXA</option>
+                            <option value="PACOTE">PACOTE</option>
+                            <option value="GALAO">GALÃO</option>
+                            <option value="LITRO">LITRO</option>
+                            <option value="PECA">PEÇA</option>
+                            <option value="QUILOGRAMA">QUILOGRAMA</option>
+                            <option value="CONJUNTO">CONJUNTO</option>
+                            <option value="CENTO">CENTO</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue, #002B5B); text-transform: uppercase; display: block; margin-bottom: 0.3rem;">Observações / Detalhes Adicionais</label>
+                    <textarea id="prod-obs" rows="3" class="input-standard input-upper" placeholder="Informações adicionais sobre o produto..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 600; outline: none; color: var(--text-main, #334155); resize: vertical; font-family: inherit;"></textarea>
+                </div>
+            </div>
+            
+            <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px; background: #f8fafc;">
+                <button class="btn-cancel" id="btn-cancelar-modal" style="background: white; border: 1px solid #cbd5e1; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 700; font-size: 0.85rem; color: #64748b; cursor: pointer;">Cancelar</button>
+                <button class="btn-save" id="btn-salvar-produto" style="background: var(--cnx-blue, #002B5B); color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 6px; font-weight: 700; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <i data-lucide="save" style="width: 16px; color: var(--cnx-orange, #F26522);"></i> <span>Salvar Cadastro</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
