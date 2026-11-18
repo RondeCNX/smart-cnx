@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#f8fafc">
+    <title>Smart CNX - Login</title>
+    
+    <link rel="icon" href="assets/imagens/icon.ico" type="image/x-icon">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Ícones Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Supabase CDN -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    
+    <!-- Configuração global e CSS base -->
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="css/global.css">
+
+    <style>
+        /* ================= LAYOUT PRINCIPAL (DESKTOP) ================= */
+        #app-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            background-image: url('assets/imagens/Fundo.jpg');
+            background-size: cover;
+            background-position: 25% center;
+            justify-content: flex-end; /* Posiciona o container do login à direita */
+            transition: filter 0.3s ease;
+        }
+        
+        /* Efeito de desfoque no fundo quando a Splash aparece */
+        #app-container.blur-bg {
+            filter: blur(8px);
+        }
+
+        /* Container do Formulário (Transparente para o card flutuar) */
+        .login-side {
+            width: 30%; /* Proporção na tela */
+            min-width: 420px;
+            background-color: transparent; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 3rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* O Card Flutuante */
+        .login-card {
+            width: 100%;
+            max-width: 360px;
+            background: white; /* Fundo sólido do cartão */
+            padding: 2.5rem 2rem;
+            border-radius: 16px;
+            /* Sombra profunda para dar o efeito de flutuação */
+            box-shadow: 0 25px 50px rgba(0,0,0,0.35); 
+            border: 1px solid rgba(255,255,255,0.8);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Linha decorativa no topo do card com as cores da CNX */
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, var(--cnx-blue), var(--cnx-orange));
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            margin-top: 0.5rem;
+        }
+        .login-header img {
+            width: 90px;
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.05));
+        }
+        .login-header h2 {
+            color: var(--cnx-blue);
+            font-size: 1.6rem;
+            font-weight: 800;
+            margin-bottom: 0.2rem;
+        }
+        .login-header p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        /* ================= COMPONENTES DO FORMULÁRIO ================= */
+        .input-group {
+            margin-bottom: 1.25rem;
+            position: relative;
+        }
+        .input-group label {
+            display: block;
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: var(--cnx-blue);
+            text-transform: uppercase;
+            margin-bottom: 0.4rem;
+            letter-spacing: 0.5px;
+        }
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .input-wrapper > i.input-icon {
+            position: absolute;
+            left: 1rem;
+            color: #94a3b8;
+            width: 18px;
+            height: 18px;
+            pointer-events: none;
+        }
+        .input-wrapper input {
+            width: 100%;
+            padding: 0.85rem 1rem 0.85rem 2.8rem;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            background-color: #f1f5f9;
+            transition: all 0.2s ease;
+        }
+        .input-wrapper input:focus {
+            outline: none;
+            border-color: var(--cnx-blue);
+            background-color: white;
+            box-shadow: 0 0 0 3px rgba(0, 43, 91, 0.1);
+        }
+        .input-wrapper input::placeholder {
+            color: #cbd5e1;
+            font-weight: 400;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 1rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #94a3b8;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+        .toggle-password:hover {
+            color: var(--cnx-orange);
+        }
+
+        .btn-submit {
+            width: 100%;
+            background-color: var(--cnx-orange);
+            color: white;
+            border: none;
+            padding: 0.9rem;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 1.5rem;
+            box-shadow: 0 4px 6px rgba(242, 101, 34, 0.25);
+        }
+        .btn-submit:hover {
+            background-color: var(--cnx-orange-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(242, 101, 34, 0.35);
+        }
+        .btn-submit:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .msg-erro {
+            color: #ef4444;
+            background-color: #fef2f2;
+            border: 1px solid #fecaca;
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-align: center;
+            margin-top: 1.2rem;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        /* ================= SPLASH SCREEN ================= */
+        #splash-screen {
+            position: fixed;
+            inset: 0;
+            background-image: url('assets/imagens/Splash.jpg');
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease-in, visibility 0.5s;
+        }
+        #splash-screen::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(242, 101, 34, 0.95), rgba(217, 90, 30, 0.9));
+            z-index: 1;
+        }
+        #splash-screen.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .splash-content {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+            width: 100%;
+            max-width: 800px;
+            padding: 2rem;
+        }
+        .splash-grid {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 4rem;
+            width: 100%;
+        }
+        .splash-logo-construct {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            animation: pulse 2s infinite;
+        }
+        .splash-logo-construct img {
+            width: 90px;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+        }
+        .splash-logo-text-box {
+            text-align: left;
+            color: white;
+        }
+        .splash-logo-text-main {
+            font-size: 3rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            line-height: 1;
+            margin-bottom: -4px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .splash-logo-text-sub {
+            font-size: 1.1rem;
+            font-weight: 300;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        .splash-user-profile {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 1.5rem 2rem;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            text-align: left;
+            color: white;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            animation: slideInRight 0.6s ease-out forwards;
+            opacity: 0;
+            transform: translateX(30px);
+        }
+        .splash-avatar {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background-color: white;
+            border: 3px solid rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            flex-shrink: 0;
+        }
+        .splash-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .splash-user-info h3 { font-size: 1.25rem; font-weight: 800; margin-bottom: 0.2rem; }
+        .splash-user-info p { font-size: 0.9rem; font-weight: 500; opacity: 0.9; margin-bottom: 0.5rem; }
+        .splash-user-info .last-access { font-size: 0.75rem; font-weight: 400; opacity: 0.7; display: flex; align-items: center; gap: 5px; }
+        
+        .splash-loading-text {
+            color: white;
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            opacity: 0;
+            animation: fadeIn 0.5s ease forwards 0.8s;
+        }
+
+        /* ================= RESPONSIVO (MOBILE) ================= */
+        @media (max-width: 992px) {
+            #app-container {
+                justify-content: center; /* Centraliza o card flutuante no mobile */
+            }
+            .login-side {
+                width: 100%;
+                min-width: 100%;
+                padding: 1.5rem;
+            }
+            .login-card {
+                max-width: 400px;
+            }
+            .splash-grid {
+                flex-direction: column;
+                gap: 2.5rem;
+            }
+            .splash-user-profile {
+                flex-direction: column;
+                text-align: center;
+                animation: slideInUp 0.6s ease-out forwards;
+                transform: translateY(30px);
+                padding: 2rem 1.5rem;
+                width: 100%;
+                max-width: 320px;
+            }
+            .splash-user-info .last-access { justify-content: center; }
+        }
+
+        /* Animações */
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }
+        @keyframes slideInRight { to { opacity: 1; transform: translateX(0); } }
+        @keyframes slideInUp { to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { to { opacity: 0.8; } }
+    </style>
+</head>
+<body>
+
+    <!-- LAYOUT DE APLICAÇÃO -->
+    <div id="app-container">
+        
+        <!-- Formulário Flutuante -->
+        <div class="login-side">
+            <div class="login-card">
+                <div class="login-header">
+                    <img src="assets/imagens/Logo.png" alt="Smart CNX">
+                    <h2 id="login-title">Smart CNX</h2>
+                    <p id="login-subtitle">Controle de Estoque</p>
+                </div>
+
+                <form id="loginForm">
+                    <div class="input-group">
+                        <label>E-mail de Acesso</label>
+                        <div class="input-wrapper">
+                            <i data-lucide="mail" class="input-icon"></i>
+                            <input type="email" id="email" placeholder="email@cnxtelecom.com.br" required autocomplete="email">
+                        </div>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>Senha</label>
+                        <div class="input-wrapper">
+                            <i data-lucide="lock" class="input-icon"></i>
+                            <input type="password" id="senha" placeholder="••••••••" required autocomplete="current-password">
+                            <button type="button" id="togglePassword" class="toggle-password" tabindex="-1" title="Mostrar senha">
+                                <i data-lucide="eye-off" id="eyeIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="msg-erro" class="msg-erro">
+                        <i data-lucide="alert-circle" style="width: 16px; height: 16px;"></i>
+                        <span id="msg-erro-text"></span>
+                    </div>
+
+                    <button type="submit" id="btn-submit" class="btn-submit">
+                        <span id="btn-text">Acessar Sistema</span>
+                        <i data-lucide="arrow-right" id="btn-icon" style="width: 18px;"></i> 
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- SPLASH SCREEN (Mostrada APENAS APÓS o login) -->
+    <div id="splash-screen">
+        <div class="splash-content">
+            
+            <div class="splash-grid">
+                <div class="splash-logo-construct">
+                    <img src="assets/imagens/Logo.png" alt="Logo" onerror="this.style.display='none'">
+                    <div class="splash-logo-text-box">
+                        <div class="splash-logo-text-main">cnx</div>
+                        <div class="splash-logo-text-sub">telecom</div>
+                    </div>
+                </div>
+
+                <div class="splash-user-profile" id="splash-user-profile">
+                    <div class="splash-avatar">
+                        <img src="" alt="Avatar" id="splash-avatar-img" style="display: none;">
+                        <i data-lucide="user" id="splash-avatar-icon" style="width: 32px; height: 32px; color: #cbd5e1;"></i>
+                    </div>
+                    <div class="splash-user-info">
+                        <h3 id="splash-user-name">Bem-vindo(a)</h3>
+                        <p id="splash-user-role">Autenticando...</p>
+                        <div class="last-access">
+                            <i data-lucide="clock" style="width: 12px; height: 12px;"></i>
+                            <span id="splash-last-access">Acesso registrado agora</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="splash-loading-text">
+                <i data-lucide="loader-2" class="lucide-spin" style="width: 16px;"></i> Carregando Módulos Operacionais...
+            </div>
+
+        </div>
+    </div>
+
+    <!-- CONTROLADOR LÓGICO -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+
+            const BREAKPOINT_MOBILE = 992; 
+            const appContainer = document.getElementById('app-container');
+            const splashScreen = document.getElementById('splash-screen');
+            const loginSubtitle = document.getElementById('login-subtitle');
+            const btnText = document.getElementById('btn-text');
+
+            const loginForm = document.getElementById('loginForm');
+            const emailInput = document.getElementById('email');
+            const senhaInput = document.getElementById('senha');
+            const btnSubmit = document.getElementById('btn-submit');
+            const msgErro = document.getElementById('msg-erro');
+            const msgErroText = document.getElementById('msg-erro-text');
+            const togglePasswordBtn = document.getElementById('togglePassword');
+            const eyeIcon = document.getElementById('eyeIcon');
+
+            // Limpa sessão residual
+            if (window.db && window.db.auth) {
+                window.db.auth.signOut().catch(e => console.log(e));
+            }
+
+            togglePasswordBtn.addEventListener('click', () => {
+                const type = senhaInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                senhaInput.setAttribute('type', type);
+                eyeIcon.setAttribute('data-lucide', type === 'password' ? 'eye-off' : 'eye');
+                lucide.createIcons();
+            });
+
+            function adaptarTextosPorDispositivo() {
+                const isMobile = window.innerWidth <= BREAKPOINT_MOBILE;
+                if (isMobile) {
+                    loginSubtitle.innerText = "Operação em Campo";
+                    btnText.innerText = "Acessar Operação";
+                } else {
+                    loginSubtitle.innerText = "Controle de Estoque";
+                    btnText.innerText = "Acessar Sistema";
+                }
+            }
+            adaptarTextosPorDispositivo();
+            window.addEventListener('resize', adaptarTextosPorDispositivo);
+
+            function rotearUsuario() {
+                const isMobile = window.innerWidth <= BREAKPOINT_MOBILE;
+                if (isMobile) {
+                    window.location.replace('app/index.html');
+                } else {
+                    window.location.replace('admin/index.html');
+                }
+            }
+
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                btnSubmit.disabled = true;
+                btnSubmit.innerHTML = `<i data-lucide="loader-2" class="lucide-spin" style="width: 20px;"></i> <span>Verificando...</span>`;
+                lucide.createIcons();
+                msgErro.style.display = "none";
+
+                try {
+                    const emailFormatado = emailInput.value.toLowerCase().trim();
+                    const senhaFormatada = senhaInput.value;
+
+                    const { data: authData, error: authError } = await window.db.auth.signInWithPassword({
+                        email: emailFormatado,
+                        password: senhaFormatada
+                    });
+
+                    if (authError) throw authError;
+
+                    let nomeExibicao = "Utilizador";
+                    let cargoExibicao = "Carregando perfil...";
+                    let avatarSrc = null;
+
+                    if (authData?.user) {
+                        const { data: userInfo } = await window.db
+                            .from('usuarios')
+                            .select('nome_completo, avatar_url, cargos(nome)')
+                            .eq('id', authData.user.id)
+                            .single();
+                        
+                        if (userInfo) {
+                            nomeExibicao = userInfo.nome_completo;
+                            cargoExibicao = userInfo.cargos?.nome || "Membro da Equipe";
+                            avatarSrc = userInfo.avatar_url;
+                        }
+
+                        await window.db.from('logs_auditoria').insert([{
+                            registro_id: authData.user.id,
+                            tabela: 'usuarios',
+                            acao: 'LOGIN',
+                            usuario_id: authData.user.id,
+                            dados_novos: { evento: 'Acesso ao sistema' }
+                        }]);
+                    }
+
+                    document.getElementById('splash-user-name').innerText = nomeExibicao;
+                    document.getElementById('splash-user-role').innerText = cargoExibicao;
+                    
+                    const dataAtual = new Date();
+                    document.getElementById('splash-last-access').innerText = `Acesso em ${dataAtual.toLocaleDateString('pt-BR')} às ${dataAtual.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}`;
+
+                    if (avatarSrc) {
+                        const imgEl = document.getElementById('splash-avatar-img');
+                        imgEl.src = avatarSrc;
+                        imgEl.style.display = 'block';
+                        document.getElementById('splash-avatar-icon').style.display = 'none';
+                    }
+
+                    appContainer.classList.add('blur-bg');
+                    splashScreen.classList.add('active');
+                    
+                    setTimeout(() => {
+                        rotearUsuario();
+                    }, 2500);
+
+                } catch (erro) {
+                    console.error("Erro no login:", erro);
+                    
+                    let mensagemUsuario = "Erro de autenticação.";
+                    if (erro.message.includes("Invalid login credentials")) {
+                        mensagemUsuario = "E-mail ou senha incorretos.";
+                    } else if (erro.message.includes("Email not confirmed")) {
+                        mensagemUsuario = "E-mail não confirmado.";
+                    } else if (erro.message.includes("Failed to fetch")) {
+                        mensagemUsuario = "Sem conexão com a internet.";
+                    }
+
+                    msgErroText.innerText = mensagemUsuario;
+                    msgErro.style.display = "flex";
+                    
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = `<span>${window.innerWidth <= BREAKPOINT_MOBILE ? 'Acessar Operação' : 'Acessar Sistema'}</span> <i data-lucide="arrow-right" style="width: 18px;"></i>`;
+                    lucide.createIcons();
+                }
+            });
+
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
+                    .catch(err => console.error('PWA erro:', err));
+                });
+            }
+        });
+    </script>
+</body>
+</html>

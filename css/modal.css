@@ -1,0 +1,68 @@
+.custom-popup-overlay {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);
+    z-index: 9999; display: flex; align-items: center; justify-content: center;
+    opacity: 0; visibility: hidden; transition: opacity 0.2s, visibility 0.2s;
+}
+.custom-popup-overlay.show { opacity: 1; visibility: visible; }
+
+.custom-popup-box {
+    overflow: hidden;
+    background: white; border-radius: 12px; width: 100%; max-width: 400px; padding: 2rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); text-align: center;
+    transform: scale(0.95) translateY(20px); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.custom-popup-overlay.show .custom-popup-box {
+    overflow: hidden; transform: scale(1) translateY(0); }
+
+.popup-icon-wrapper {
+    width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1.5rem;
+}
+.popup-icon-wrapper.warning { background: #fef3c7; color: #d97706; }
+.popup-icon-wrapper.error { background: #fee2e2; color: #dc2626; }
+.popup-icon-wrapper.success { background: #d1fae5; color: #059669; }
+.popup-icon-wrapper.info { background: #e0f2fe; color: #0284c7; }
+.popup-icon-wrapper i { width: 32px; height: 32px; }
+
+.popup-title { font-size: 1.25rem; font-weight: 800; color: var(--cnx-blue); margin-bottom: 0.5rem; }
+.popup-message { font-size: 0.9rem; color: #64748b; margin-bottom: 2rem; line-height: 1.5; }
+
+.popup-actions { display: flex; gap: 12px; justify-content: center; }
+.popup-btn {
+    padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer;
+    transition: all 0.2s; border: none; display: flex; align-items: center; justify-content: center; flex: 1;
+}
+.popup-btn.cancel { background: #f1f5f9; color: #64748b; }
+.popup-btn.cancel:hover { background: #e2e8f0; color: var(--text-main); }
+.popup-btn.confirm { background: var(--cnx-blue); color: white; }
+.popup-btn.confirm:hover { background: #0f172a; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+.popup-btn.confirm.danger { background: #ef4444; }
+.popup-btn.confirm.danger:hover { background: #dc2626; }
+
+/* Controles de Tabela do Modal */
+.table-checkbox {
+    width: 16px; height: 16px; accent-color: var(--cnx-orange); cursor: pointer;
+}
+.table-checkbox:disabled { opacity: 0.8 !important; filter: grayscale(50%); cursor: not-allowed; }
+
+/* ================= HISTÓRICO / AUDITORIA TIMELINE ================= */
+.timeline { position: relative; padding: 0.5rem 0; }
+.timeline::before { content: ''; position: absolute; left: 19px; top: 0; bottom: 0; width: 2px; background: #e2e8f0; }
+.timeline-item { position: relative; padding-left: 45px; margin-bottom: 1rem; }
+.timeline-item:last-child { margin-bottom: 0; }
+.timeline-icon {
+    /* Reduzido tamanho do ícone */
+    position: absolute; left: 8px; top: 0; width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; z-index: 2; border: 3px solid #f8fafc;
+}
+.timeline-icon i { width: 12px; height: 12px; }
+.timeline-content { background: white; border: 1px solid #e2e8f0; padding: 0.75rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+.timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.timeline-header strong { color: var(--cnx-blue); font-size: 0.65rem; text-transform: uppercase; font-weight: 800; }
+.timeline-header span { color: #94a3b8; font-size: 0.6rem; font-weight: 700; }
+.timeline-user { font-size: 0.65rem; color: #64748b; display: flex; align-items: center; gap: 4px; margin-bottom: 0.4rem; font-weight: 600; }
+.timeline-user i { width: 12px; height: 12px; }
+.timeline-details { margin-top: 0.8rem; font-size: 0.75rem; border-top: 1px dashed #e2e8f0; padding-top: 0.8rem; }
+.timeline-details pre { background: #f8fafc; padding: 0.8rem; border-radius: 6px; overflow-x: auto; font-family: monospace; border: 1px solid #f1f5f9; margin-top: 4px; color: #475569; white-space: pre-wrap; word-wrap: break-word;}
+.log-old strong { color: #ef4444; font-size: 0.7rem; text-transform: uppercase; }
+.log-new strong { color: #10b981; font-size: 0.7rem; text-transform: uppercase; }

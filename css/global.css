@@ -1,0 +1,39 @@
+:root {
+  --cnx-orange: #F26522;
+  --cnx-orange-hover: #d95a1e;
+  --cnx-blue: #002B5B;
+  --cnx-blue-hover: #001B3A;
+  --bg-light: #f8fafc;
+  --text-main: #334155;
+  --text-muted: #64748b;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+body, html {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-light);
+  overflow: hidden; /* Comportamento de App */
+  color: var(--text-main);
+}
+
+/* Utilitários genéricos */
+.hidden { display: none !important; }
+.fade-in { animation: fadeIn 0.4s ease-in-out; }
+.fade-out { animation: fadeOut 0.4s ease-in-out forwards; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; visibility: hidden; }
+}
