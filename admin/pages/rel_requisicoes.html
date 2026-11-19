@@ -1,0 +1,126 @@
+<!-- admin/pages/rel_requisicoes.html -->
+<div class="modulo-container" id="modulo-rel-requisicoes">
+    <div class="modulo-header">
+        <div>
+            <h2>Relatório de Requisições de Materiais</h2>
+            <p>FILTRE OS DADOS E EXPORTE EM PDF OU EXCEL</p>
+        </div>
+        <button class="btn-novo-registro" id="btn-abrir-export-rel-req">
+            <div><i data-lucide="file-bar-chart-2"></i></div> Gerar Relatório
+        </button>
+    </div>
+
+    <!-- Barra de Filtros Dinâmicos -->
+    <div class="filter-bar">
+        <div class="filter-input-wrapper">
+            <select class="filter-select" id="filtro-campo">
+                <option value="periodo">Data (Intervalo)</option>
+                <option value="solicitante">Quem Pediu</option>
+                <option value="origem">Unidade Origem (Abastecedor)</option>
+                <option value="destino">Unidade Destino (Solicitante)</option>
+                <option value="produto">Produto</option>
+                <option value="status">Status</option>
+                <option value="divergencia">Divergências</option>
+            </select>
+
+            <!-- Intervalo de Datas -->
+            <div class="filtro-input-dinamico" id="wrapper-periodo" style="display: flex; align-items: center; gap: 6px; flex: 1;">
+                <input type="date" id="filtro-data-ini" class="filter-input" title="Data Inicial" style="flex: 1;">
+                <span style="font-size: 0.7rem; font-weight: 800; color: #64748b;">ATÉ</span>
+                <input type="date" id="filtro-data-fim" class="filter-input" title="Data Final" style="flex: 1;">
+            </div>
+
+            <!-- Texto + Exato -->
+            <div class="input-with-checkbox filtro-input-dinamico" id="wrapper-texto" style="display: none;">
+                <input type="text" id="filtro-valor-texto" class="filter-input input-upper" placeholder="Buscar... (Pressione Enter)">
+                <label class="checkbox-label" id="lbl-filtro-exato"><input type="checkbox" id="filtro-exato"> <span>EXATO</span></label>
+            </div>
+
+            <!-- Status -->
+            <select id="filtro-valor-status" class="filter-input filtro-input-dinamico" style="display: none; cursor: pointer;">
+                <option value="PENDENTE">PENDENTE</option>
+                <option value="APROVADA">APROVADA</option>
+                <option value="ENVIADA">ENVIADA</option>
+                <option value="CONCLUIDA">CONCLUÍDA</option>
+                <option value="DIVERGENCIA">DIVERGÊNCIA</option>
+                <option value="REJEITADA">REJEITADA</option>
+            </select>
+
+            <!-- Divergências -->
+            <select id="filtro-valor-divergencia" class="filter-input filtro-input-dinamico" style="display: none; cursor: pointer;">
+                <option value="COM">APENAS COM DIVERGÊNCIA</option>
+                <option value="SEM">SEM DIVERGÊNCIA</option>
+            </select>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+            <button class="filter-btn add" id="btn-add-filtro"><i data-lucide="list-plus"></i> Adicionar</button>
+            <button class="filter-btn apply" id="btn-aplicar-filtro"><i data-lucide="check"></i> Aplicar</button>
+            <button class="filter-btn clear" id="btn-limpar-filtros"><i data-lucide="eraser"></i> Limpar</button>
+        </div>
+    </div>
+
+    <!-- Área de Filtros Ativos -->
+    <div class="active-filters-area">
+        <div class="tabela-info-bar">
+            <span>ENCONTRADOS: <span id="lbl-total-reqs">0</span> REQUISIÇÕES (<span id="lbl-total-itens">0</span> ITENS)</span>
+        </div>
+        <div class="tags-dropdown-wrapper">
+            <button id="btn-refresh-rel-req" title="Recarregar Base" style="background:none; border:none; color:#64748b; cursor:pointer; display:flex; align-items:center; padding:0; margin-right:8px;">
+                <i data-lucide="refresh-cw" class="refresh-icon" style="width: 14px;"></i>
+            </button>
+            <i data-lucide="filter" style="width: 12px; height: 12px; color: #64748b;"></i>
+            <span class="filters-label" id="lbl-filtros-ativos">Nenhum filtro aplicado</span>
+            <div class="tags-container" id="container-tags-inline" style="display:flex; gap:4px; align-items:center;"></div>
+        </div>
+    </div>
+
+    <!-- Painel de Resumo (KPIs) -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-top: 1.25rem;">
+        <div style="background: white; border: 1px solid #e2e8f0; border-left: 4px solid var(--cnx-blue); border-radius: 8px; padding: 1.25rem;">
+            <div style="font-size: 0.7rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Requisições Encontradas</div>
+            <div id="kpi-rel-req-total" style="font-size: 1.8rem; font-weight: 800; color: var(--cnx-blue); margin-top: 6px;">0</div>
+        </div>
+        <div style="background: white; border: 1px solid #e2e8f0; border-left: 4px solid var(--cnx-orange); border-radius: 8px; padding: 1.25rem;">
+            <div style="font-size: 0.7rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Itens (Linhas)</div>
+            <div id="kpi-rel-req-itens" style="font-size: 1.8rem; font-weight: 800; color: var(--cnx-orange); margin-top: 6px;">0</div>
+        </div>
+        <div style="background: white; border: 1px solid #e2e8f0; border-left: 4px solid #16a34a; border-radius: 8px; padding: 1.25rem;">
+            <div style="font-size: 0.7rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Qtd. Total Enviada</div>
+            <div id="kpi-rel-req-qtd" style="font-size: 1.8rem; font-weight: 800; color: #16a34a; margin-top: 6px;">0</div>
+        </div>
+        <div style="background: white; border: 1px solid #e2e8f0; border-left: 4px solid #ef4444; border-radius: 8px; padding: 1.25rem;">
+            <div style="font-size: 0.7rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Itens c/ Divergência</div>
+            <div id="kpi-rel-req-div" style="font-size: 1.8rem; font-weight: 800; color: #ef4444; margin-top: 6px;">0</div>
+        </div>
+    </div>
+
+    <!-- Aviso de Estado -->
+    <div id="box-status-rel-req" style="margin-top: 1.5rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 2.5rem 1.5rem; text-align: center; color: #64748b;">
+        <i data-lucide="file-spreadsheet" style="width: 40px; height: 40px; color: var(--cnx-blue); opacity: 0.4; margin-bottom: 0.75rem;"></i>
+        <div style="font-weight: 800; color: var(--cnx-blue); font-size: 0.95rem;">Relatório pronto para emissão</div>
+        <div style="font-size: 0.8rem; margin-top: 4px;">Adicione os filtros desejados acima e clique em <strong>Gerar Relatório</strong> para escolher entre PDF ou Excel.</div>
+    </div>
+
+    <!-- MODAL DE ESCOLHA DO FORMATO (PDF / EXCEL) -->
+    <div class="modal-overlay" id="modal-export-rel-req" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 10600; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 360px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); overflow: hidden;">
+            <div style="background: var(--cnx-blue); padding: 1rem 1.25rem; color: white; font-weight: 800; font-size: 1rem; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="file-bar-chart-2" style="color: var(--cnx-orange); width: 18px;"></i> <span>Gerar Relatório</span>
+                </div>
+                <button id="btn-fechar-export-rel-req" style="background:none; border:none; color:white; cursor:pointer;"><i data-lucide="x" style="width:16px;"></i></button>
+            </div>
+
+            <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 10px;">
+                <button id="btn-export-pdf-rel-req" style="background: var(--cnx-blue); border: none; padding: 0.85rem; border-radius: 6px; font-weight: 700; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <i data-lucide="file-text" style="width: 18px; color: var(--cnx-orange);"></i> Gerar Relatório em PDF
+                </button>
+                <div style="text-align: center; margin: 2px 0; color: #94a3b8; font-size: 0.7rem; font-weight: 700;">OU</div>
+                <button id="btn-export-csv-rel-req" style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 0.85rem; border-radius: 6px; font-weight: 700; color: var(--cnx-blue); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <i data-lucide="sheet" style="width: 18px; color: #16a34a;"></i> Exportar para Excel (CSV)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

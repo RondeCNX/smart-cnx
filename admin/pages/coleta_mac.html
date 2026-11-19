@@ -61,19 +61,18 @@
     </div>
 
     <!-- Tabela Principal -->
-    <div class="table-scroll-wrapper" style="max-height: calc(100vh - 350px); overflow-y: auto;">
-        <table class="data-table">
+    <div class="table-scroll-wrapper" style="max-height: calc(100vh - 350px); overflow-y: auto; overflow-x: hidden;">
+        <table class="data-table" style="width: 100%; table-layout: fixed;">
             <thead>
                 <tr>
-                    <th class="sort-col" data-col="data_coleta" style="width: 90px; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Data <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="numero_os" style="width: 110px; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>O.S. <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="almoxarifadoDesc" style="padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Almoxarifado <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="produtoDesc" style="padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Produto / Modelo <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="mac" style="padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>MAC (Gpon) <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="numero_serie" style="padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Nº Série (MAC) <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    
-                    <th class="sort-col" data-col="status" style="width: 100px; text-align: center; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Status <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th style="text-align: center; width: 100px; padding: 0.8rem; background: var(--cnx-blue); color: white;">Ações</th>
+                    <th class="sort-col" data-col="data_coleta" style="width: 90px; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>Data <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="numero_os" style="width: 85px; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>O.S. <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="almoxarifadoDesc" style="width: 19%; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>Almoxarifado <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="produtoDesc" style="width: 18%; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>Produto / Modelo <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="mac" style="width: 15%; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>MAC (Gpon) <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="numero_serie" style="width: 13%; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>Nº Série (MAC) <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="status" style="width: 95px; text-align: center; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>Status <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th style="text-align: center; width: 110px; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;">Ações</th>
                 </tr>
             </thead>
             <tbody id="tbody-coletas">
@@ -118,13 +117,14 @@
                                 <option value="RETIRADA">Retirada</option>
                                 <option value="DEVOLUCAO">Devolução</option>
                                 <option value="TROCA">Troca</option>
+                                <option value="ESTOQUE">Estoque</option>
                                 <option value="OUTROS">Outros</option>
                             </select>
                         </div>
                     </div>
                     
                     <div class="form-group" style="margin-bottom: 1rem;">
-                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Nº da O.S. <span style="color:red;">*</span></label>
+                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Nº da O.S. <span id="asterisco-os" style="color:red;">*</span></label>
                         <input type="text" id="coleta-os" class="input-standard input-upper" placeholder="EX: OS-12345" style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700;">
                     </div>
 

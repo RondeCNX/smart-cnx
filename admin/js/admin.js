@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { data: { session }, error } = await window.db.auth.getSession();
         if (error || !session) { window.location.replace('../index.html'); return; }
         carregarPerfilRodape(session.user.id);
-        carregarFiltroAlmoxarifados();
+        carregarFiltroAlmoxarifados(session.user.id);
         navegarPara('dashboard');
     } catch (err) { window.location.replace('../index.html'); }
 });
@@ -30,29 +30,103 @@ async function carregarPerfilRodape(userId) {
     } catch (err) {}
 }
 
-async function carregarFiltroAlmoxarifados() {
+async function carregarFiltroAlmoxarifados(userId) {
+    const btnFiltro = document.getElementById('btn-filtro-almox');
+    const lblFiltro = document.getElementById('label-filtro-almox');
+    const listaEl = document.getElementById('lista-almoxarifados');
+    const chkTodos = document.getElementById('chk-todos-almox');
+
     try {
-        const { data: almoxData } = await window.db.from('almoxarifados').select('id, codigo, descricao').eq('status', 'ATIVO').order('descricao');
-        if (almoxData) {
-            let html = '';
-            almoxData.forEach(almox => {
-                html += `<label class="checkbox-label disabled"><input type="checkbox" class="chk-almox-item" value="${almox.id}" disabled onchange="atualizarLabelFiltro()"><span>${almox.codigo} - ${almox.descricao}</span></label>`;
-            });
-            document.getElementById('lista-almoxarifados').innerHTML = html;
+        const [resUser, resVincs, resAlmox] = await Promise.all([
+            window.db.from('usuarios').select('acesso_todos_almoxarifados, cargos(nome)').eq('id', userId).maybeSingle(),
+            window.db.from('usuario_almoxarifados').select('almoxarifado_id').eq('usuario_id', userId),
+            window.db.from('almoxarifados').select('id, codigo, descricao').eq('status', 'ATIVO').order('codigo')
+        ]);
+
+        const cargoNome = resUser.data?.cargos?.nome?.toUpperCase() || '';
+        const acessoTodos = cargoNome === 'ADMINISTRADOR' || !!resUser.data?.acesso_todos_almoxarifados;
+        const idsVinculados = (resVincs.data || []).map(v => v.almoxarifado_id);
+        const todosAtivos = resAlmox.data || [];
+
+        const almoxPermitidos = acessoTodos
+            ? todosAtivos
+            : todosAtivos.filter(a => idsVinculados.includes(a.id));
+
+        // Caso 0: Nenhum almoxarifado vinculado
+        if (almoxPermitidos.length === 0) {
+            lblFiltro.innerText = 'Nenhum almoxarifado vinculado';
+            if (btnFiltro) {
+                btnFiltro.onclick = null;
+                btnFiltro.style.cursor = 'default';
+            }
+            listaEl.innerHTML = '';
+            return;
         }
-    } catch (err) {}
+
+        // Caso 1: Apenas 1 almoxarifado vinculado -> exibe direto no rodapé sem dropdown
+        if (almoxPermitidos.length === 1) {
+            const unico = almoxPermitidos[0];
+            lblFiltro.innerText = `${unico.codigo} - ${unico.descricao}`;
+            if (btnFiltro) {
+                btnFiltro.onclick = null;
+                btnFiltro.style.cursor = 'default';
+            }
+            // Mantém o input marcado oculto para compatibilidade com módulos que leem .chk-almox-item:checked
+            listaEl.innerHTML = `<input type="checkbox" class="chk-almox-item" value="${unico.id}" checked style="display:none;">`;
+            return;
+        }
+
+        // Caso 2: Mais de 1 almoxarifado vinculado -> exibe lista rolável com checkboxes
+        if (btnFiltro) {
+            btnFiltro.onclick = () => toggleDropdown('menu-filtro-almox');
+            btnFiltro.style.cursor = 'pointer';
+        }
+
+        listaEl.innerHTML = almoxPermitidos.map(almox => `
+            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; margin: 0; cursor: pointer; font-size: 0.75rem; color: #334155; transition: background 0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+                <input type="checkbox" class="chk-almox-item" value="${almox.id}" checked onchange="atualizarLabelFiltro()" style="cursor: pointer; flex-shrink: 0;">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${almox.codigo} - ${almox.descricao}">${almox.codigo} - ${almox.descricao}</span>
+            </label>
+        `).join('');
+
+        if (chkTodos) chkTodos.checked = true;
+        lblFiltro.innerText = 'Todos os Almoxarifados';
+    } catch (err) {
+        console.error('Erro ao carregar filtro de almoxarifados:', err);
+        if (lblFiltro) lblFiltro.innerText = 'Erro ao carregar';
+    }
 }
+
 function toggleTodosAlmoxarifados(checkbox) {
     const isChecked = checkbox.checked;
-    document.querySelectorAll('.chk-almox-item').forEach(item => { item.disabled = isChecked; if (isChecked) item.checked = false; });
-    document.querySelectorAll('.filtro-lista .checkbox-label').forEach(lbl => { if (isChecked) lbl.classList.add('disabled'); else lbl.classList.remove('disabled'); });
-    if (isChecked) document.getElementById('label-filtro-almox').innerText = "Todos os Almoxarifados";
-    else atualizarLabelFiltro();
+    document.querySelectorAll('.chk-almox-item').forEach(item => {
+        item.checked = isChecked;
+    });
+    atualizarLabelFiltro();
 }
+
 function atualizarLabelFiltro() {
-    const qt = document.querySelectorAll('.chk-almox-item:checked').length;
-    document.getElementById('label-filtro-almox').innerText = qt === 0 ? "Nenhum selecionado" : `${qt} almoxarifado(s)`;
+    const itens = Array.from(document.querySelectorAll('.chk-almox-item'));
+    const marcados = itens.filter(i => i.checked);
+    const chkTodos = document.getElementById('chk-todos-almox');
+    const lblFiltro = document.getElementById('label-filtro-almox');
+
+    if (chkTodos) {
+        chkTodos.checked = itens.length > 0 && marcados.length === itens.length;
+    }
+
+    if (marcados.length === 0) {
+        lblFiltro.innerText = 'Nenhum selecionado';
+    } else if (marcados.length === itens.length) {
+        lblFiltro.innerText = 'Todos os Almoxarifados';
+    } else if (marcados.length === 1) {
+        const texto = marcados[0].parentElement?.querySelector('span')?.innerText;
+        lblFiltro.innerText = texto || '1 almoxarifado';
+    } else {
+        lblFiltro.innerText = `${marcados.length} almoxarifado(s)`;
+    }
 }
+
 async function fazerLogout() { await window.db.auth.signOut(); window.location.replace('../index.html'); }
 
 // ================= UTILITÁRIO GLOBAL: POP-UPS E CONFIRMAÇÕES =================
@@ -293,7 +367,7 @@ function formatarDadosLog(antigos, novos, tabelaOrigem = null) {
     if (!antigos && !novos) return '';
     let html = '<div class="timeline-details" style="display:flex; flex-direction:column; gap:0.25rem; padding-top: 0.5rem; border-top: 1px dashed #e2e8f0; margin-top: 0.5rem;">';
     
-    const chavesIgnoradas = ['id', 'created_at', 'modificado_em', 'atualizado_em', 'requisicao_id', 'emprestimo_id', 'senha', 'avatar_url', 'qtd_devolvida'];
+    const chavesIgnoradas = ['id', 'created_at', 'modificado_em', 'atualizado_em', 'requisicao_id', 'emprestimo_id', 'ajuste_estoque_id', 'senha', 'avatar_url', 'qtd_devolvida'];
     
     if (tabelaOrigem === 'requisicao_itens' && antigos && novos && novos.qtd_enviada && antigos.qtd_enviada !== novos.qtd_enviada) {
         if (Number(novos.qtd_enviada) === Number(novos.qtd_aprovada)) chavesIgnoradas.push('qtd_enviada');
@@ -310,8 +384,6 @@ function formatarDadosLog(antigos, novos, tabelaOrigem = null) {
         'previsao_devolucao': 'Previsão de Devolução', 'data_devolucao': 'Devolução Efetiva',
         'qtd_emprestada': 'Qtd. de Saída (Emprestada)', 'observacoes': 'Observações Adicionais',
         'arquivo_assinatura': 'Documento de Assinatura (Ficha)',
-        // CORREÇÃO: Nomes bonitos para as alterações dos MACs
-        'ajuste_estoque_id': 'Vínculo com Lote (ID)',
         'produto_patrimonio_erp': 'Novo Patrimônio ERP',
         'mac': 'MAC (Gpon)',
         'numero_serie': 'Nº de Série'
@@ -366,7 +438,6 @@ function formatarDadosLog(antigos, novos, tabelaOrigem = null) {
             produtoDoContexto = window.produtosCacheMap[String(prodId).toLowerCase()] || 'Desconhecido';
         }
     } 
-    // CORREÇÃO: Dá um título ao bloquinho de histórico mostrando qual MAC sofreu alteração (Vincular/Desvincular)
     else if (tabelaOrigem === 'coletas_mac') {
         const macInfo = (novos && novos.mac) || (antigos && antigos.mac) || null;
         if (macInfo) produtoDoContexto = `Equipamento MAC: ${macInfo}`;
@@ -536,6 +607,11 @@ const menuEstrutura = {
         {id: 'emprestimos', nome: 'Empréstimos', icone: 'wrench'},
         {id: 'coleta_mac', nome: 'Coleta de MAC', icone: 'cpu'},
         {id: 'ajuste_estoque', nome: 'Ajuste de Estoque', icone: 'layers'}
+    ],
+    'Relatórios': [
+        {id: 'rel_requisicoes', nome: 'Rel. Requisições', icone: 'file-spreadsheet'},
+        {id: 'rel_emprestimos', nome: 'Rel. Empréstimos', icone: 'clipboard-list'},
+        {id: 'rel_ajustes_mac', nome: 'Rel. Ajustes de MAC', icone: 'cpu'}
     ]
 };
 

@@ -51,13 +51,22 @@
                             <div class="divider"></div>
                             <a href="#" onclick="navegarPara('emprestimos')"><i data-lucide="wrench"></i> Empréstimo de Equipamentos</a>
                             <div class="divider"></div>
-                            <!-- AQUI ESTÃO OS DOIS NOVOS MENUS SEPARADOS -->
                             <a href="#" onclick="navegarPara('coleta_mac')"><i data-lucide="cpu"></i> Coleta de MAC</a>
                             <a href="#" onclick="navegarPara('ajuste_estoque')"><i data-lucide="layers"></i> Ajuste de Estoque</a>
                         </div>
                     </div>
-                    <!-- MENU DE INVENTÁRIO FOI REMOVIDO DAQUI -->
-                    <a href="#" class="nav-btn" onclick="navegarPara('relatorios')"><i data-lucide="bar-chart-2"></i> <span>Relatórios</span></a>
+                    <div class="nav-item has-dropdown">
+                        <button class="nav-btn" onclick="toggleDropdown('menu-relatorios')">
+                            <i data-lucide="bar-chart-2"></i> <span>Relatórios</span> <i data-lucide="chevron-down" class="chevron"></i>
+                        </button>
+                        <div class="dropdown-menu wide" id="menu-relatorios">
+                            <a href="#" onclick="navegarPara('rel_requisicoes')"><i data-lucide="file-spreadsheet"></i> Relatório de Requisições</a>
+                            <div class="divider"></div>
+                            <a href="#" onclick="navegarPara('rel_emprestimos')"><i data-lucide="clipboard-list"></i> Relatório de Empréstimos</a>
+                            <div class="divider"></div>
+                            <a href="#" onclick="navegarPara('rel_ajustes_mac')"><i data-lucide="cpu"></i> Relatório de Ajustes de MAC</a>
+                        </div>
+                    </div>
                     <a href="#" class="nav-btn" onclick="navegarPara('configuracoes')"><i data-lucide="settings"></i> <span>Configurações</span></a>
                     
                     <button class="btn-logout" onclick="fazerLogout()">
@@ -92,19 +101,21 @@
                         <span class="user-role-divider">Perfil: <strong id="layout-cargo-usuario">...</strong></span>
                     </div>
                 </div>
-                <div class="nav-item has-dropdown filter-up">
-                    <button class="btn-filtro-almox" onclick="toggleDropdown('menu-filtro-almox')">
+                <div class="nav-item has-dropdown filter-up" id="wrapper-filtro-almox">
+                    <button class="btn-filtro-almox" id="btn-filtro-almox" onclick="toggleDropdown('menu-filtro-almox')">
                         <i data-lucide="warehouse" class="icon-orange"></i> 
-                        <span id="label-filtro-almox">Todos os Almoxarifados</span>
+                        <span id="label-filtro-almox">Carregando...</span>
                     </button>
-                    <div class="dropdown-menu dropdown-up" id="menu-filtro-almox">
-                        <div class="filtro-header">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="chk-todos-almox" checked onchange="toggleTodosAlmoxarifados(this)">
+                    <div class="dropdown-menu dropdown-up" id="menu-filtro-almox" style="width: 320px; padding: 0; overflow: hidden; flex-direction: column; right: 0; left: auto; bottom: calc(100% + 8px);">
+                        <div class="filtro-header" style="padding: 10px 12px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center;">
+                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; font-weight: 800; color: var(--cnx-blue); font-size: 0.78rem; width: 100%;">
+                                <input type="checkbox" id="chk-todos-almox" checked onchange="toggleTodosAlmoxarifados(this)" style="cursor: pointer; flex-shrink: 0;">
                                 <span>Todos os Almoxarifados</span>
                             </label>
                         </div>
-                        <div class="filtro-lista" id="lista-almoxarifados"></div>
+                        <div class="filtro-lista" id="lista-almoxarifados" style="max-height: 240px; overflow-y: auto; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; background: white;">
+                            <!-- Injetado via JS -->
+                        </div>
                     </div>
                 </div>
             </div>

@@ -268,14 +268,14 @@
 
             return `
                 <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#fff7ed'" onmouseout="this.style.background='transparent'">
-                    <td style="padding: 0.6rem 1.25rem; font-size: 0.8rem;">${dataFmt}</td>
-                    <td style="padding: 0.6rem 1.25rem; font-weight: 700;">${r.numero_os || '-'}</td>
-                    <td style="padding: 0.6rem 1.25rem;">${r.almoxarifadoDesc}</td>
-                    <td style="padding: 0.6rem 1.25rem; font-size: 0.8rem;">${r.produtoDesc}</td>
-                    <td style="padding: 0.6rem 1.25rem; font-weight:800; color:var(--cnx-orange);">${r.mac || '-'}</td>
-                    <td style="padding: 0.6rem 1.25rem; font-size: 0.8rem; color:#64748b;">${r.numero_serie || '-'}</td>
-                    <td style="padding: 0.6rem 1.25rem; text-align: center;">${getStatusBadge(r.status)}</td>
-                    <td style="padding: 0.6rem 1.25rem; text-align: center; display: flex; justify-content: center; gap: 8px;">${btnHtml}</td>
+                    <td style="padding: 0.6rem; font-size: 0.8rem; white-space: nowrap;">${dataFmt}</td>
+                    <td style="padding: 0.6rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.numero_os || '-'}">${r.numero_os || '-'}</td>
+                    <td style="padding: 0.6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.almoxarifadoDesc}">${r.almoxarifadoDesc}</td>
+                    <td style="padding: 0.6rem; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: help;" title="${r.produtoDesc}">${r.produtoDesc}</td>
+                    <td style="padding: 0.6rem; font-weight:800; color:var(--cnx-orange); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.mac || '-'}">${r.mac || '-'}</td>
+                    <td style="padding: 0.6rem; font-size: 0.8rem; color:#64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.numero_serie || '-'}">${r.numero_serie || '-'}</td>
+                    <td style="padding: 0.6rem; text-align: center;">${getStatusBadge(r.status)}</td>
+                    <td style="padding: 0.6rem; text-align: center; display: flex; justify-content: center; gap: 6px;">${btnHtml}</td>
                 </tr>
             `;
         }).join('');
@@ -353,6 +353,29 @@
     }
     moduloContent.querySelector('#btn-fechar-coleta').addEventListener('click', fecharModalColeta);
 
+    function atualizarEstadoCampoOs() {
+        const asteriscoOs = moduloContent.querySelector('#asterisco-os');
+        const isEstoque = inTipoOs.value === 'ESTOQUE';
+
+        if (isEstoque) {
+            inOs.value = '';
+            inOs.disabled = true;
+            inOs.placeholder = 'Não se aplica (Estoque)';
+            inOs.style.background = '#f1f5f9';
+            if (asteriscoOs) asteriscoOs.style.display = 'none';
+        } else {
+            inOs.disabled = false;
+            inOs.placeholder = 'EX: OS-12345';
+            inOs.style.background = 'white';
+            if (asteriscoOs) asteriscoOs.style.display = 'inline';
+        }
+    }
+
+    inTipoOs.addEventListener('change', () => {
+        atualizarEstadoCampoOs();
+        formFoiAlterado = true;
+    });
+
     async function abrirFormulario(modo, id) {
         modoForm = modo;
         registroEmEdicaoId = id;
@@ -371,6 +394,7 @@
         
         if (modo === 'novo') {
             modalTitulo.innerHTML = `<i data-lucide="cpu" style="color: var(--cnx-orange); width: 20px;"></i> <span>Registro Unitário de Coleta</span>`;
+            atualizarEstadoCampoOs();
             montarFooterFormulario(true);
             
             if (meusAlmoxarifadosIds.length === 1) {
@@ -386,9 +410,12 @@
             
             inData.value = r.data_coleta ? r.data_coleta.split('T')[0] : '';
             inAlmoxId.value = r.almoxarifado_id; inAlmoxDesc.value = r.almoxarifadoDesc;
-            inOs.value = r.numero_os; inTipoOs.value = r.tipo_os; inObs.value = r.observacoes;
+            inTipoOs.value = r.tipo_os || 'RETIRADA';
+            atualizarEstadoCampoOs();
+            inOs.value = r.numero_os || '';
+            inObs.value = r.observacoes || '';
             inProdutoId.value = r.produto_consumo_id; inProdutoCod.value = r.produto ? r.produto.codigo : ''; inProdutoDesc.value = r.produtoDesc;
-            inMac.value = r.mac; inSerie.value = r.numero_serie;
+            inMac.value = r.mac || ''; inSerie.value = r.numero_serie || '';
             
             if (modo === 'visualizar') {
                 inData.readOnly = true; inAlmoxDesc.readOnly = true; inOs.readOnly = true; inTipoOs.disabled = true;
@@ -424,12 +451,19 @@
     async function salvarRegistroUnico() {
         const d = inData.value;
         const idAlmox = inAlmoxId.value;
-        const os = inOs.value.trim().toUpperCase();
+        const isEstoque = inTipoOs.value === 'ESTOQUE';
+        const os = isEstoque ? '' : inOs.value.trim().toUpperCase();
         const prod = inProdutoId.value;
         const mac = inMac.value.trim().toUpperCase();
         
-        if (!d || !idAlmox || !os) { window.appAlert("Atenção", "Preencha a Data, O.S. e o Almoxarifado na Aba 1.", "warning"); return; }
-        if (!prod || !mac) { window.appAlert("Atenção", "O Produto e o MAC (Aba 2) são obrigatórios.", "warning"); return; }
+        if (!d || !idAlmox || (!isEstoque && !os)) {
+            window.appAlert("Atenção", isEstoque ? "Preencha a Data e o Almoxarifado na Aba 1." : "Preencha a Data, O.S. e o Almoxarifado na Aba 1.", "warning");
+            return;
+        }
+        if (!prod || !mac) {
+            window.appAlert("Atenção", "O Produto e o MAC (Aba 2) são obrigatórios.", "warning");
+            return;
+        }
 
         const conf = await window.appConfirm('Salvar Coleta', `Deseja gravar o registro do MAC ${mac}?`);
         if(!conf) return;
