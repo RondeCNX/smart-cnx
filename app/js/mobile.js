@@ -234,10 +234,13 @@
         return true;
     }
 
+    let voltarEmAndamento = false;
+
     function coletaTemDadosPreenchidos() {
         const almox = document.getElementById('col-almoxarifado')?.value;
         const prod = document.getElementById('col-produto')?.value;
-        return Boolean(almox || prod || loteMac.length > 0 || macTemp);
+        const manual = document.getElementById('col-input-manual')?.value.trim();
+        return Boolean(almox || prod || confAlmoxId || loteMac.length > 0 || macTemp || manual);
     }
 
     async function limparEstadoColeta() {
@@ -317,92 +320,111 @@
         return true;
     }
 
-    async function acionarVoltar() {
-        if (popupAberto) return;
-
-        // 1. Fecha o modal mais recente no topo da pilha
-        if (pilhaModais.length > 0) {
-            const topo = pilhaModais[pilhaModais.length - 1];
-            const fechou = await tentarFecharModal(topo);
-            if (!fechou) window.history.pushState({ app: 'smart-cnx', modal: topo }, '');
+    async function acionarVoltar(origemPopstate = false) {
+        if (popupAberto || voltarEmAndamento) {
+            if (origemPopstate) window.history.pushState({ app: 'smart-cnx', view: viewAtual }, '');
             return;
         }
 
-        // 2. Navegação em etapas dentro da Coleta de MAC
-        if (viewAtual === 'coleta') {
-            const stepAtiva = document.getElementById('coleta-step-ativa');
-            const stepSetup = document.getElementById('coleta-step-setup');
-            const passoScan = document.getElementById('coleta-passo-scanner');
-
-            // 2a. Do scanner -> volta para seleção de modelo
-            if (stepAtiva.style.display !== 'none' && passoScan.style.display !== 'none') {
-                mostrarPassoModelo();
-                window.history.pushState({ app: 'smart-cnx', view: 'coleta' }, '');
+        voltarEmAndamento = true;
+        try {
+            // 1. Fecha o modal mais recente no topo da pilha
+            if (pilhaModais.length > 0) {
+                const topo = pilhaModais[pilhaModais.length - 1];
+                const fechou = await tentarFecharModal(topo);
+                if (!fechou) window.history.pushState({ app: 'smart-cnx', modal: topo }, '');
                 return;
             }
 
-            // 2b. Da seleção de modelo -> volta para seleção de almoxarifado
-            if (stepAtiva.style.display !== 'none') {
-                const prodPreenchido = Boolean(document.getElementById('col-produto')?.value);
-                if (loteMac.length > 0 || prodPreenchido) {
+            // 2. Navegação em etapas dentro da Coleta de MAC
+            if (viewAtual === 'coleta') {
+                const stepAtiva = document.getElementById('coleta-step-ativa');
+                const stepSetup = document.getElementById('coleta-step-setup');
+                const passoScan = document.getElementById('coleta-passo-scanner');
+
+                // 2a. Da câmera -> valida se há leitura em andamento ou itens já bipados no lote
+                if (stepAtiva.style.display !== 'none' && passoScan.style.display !== 'none') {
+                    const manual = document.getElementById('col-input-manual')?.value.trim();
+                    if (loteMac.length > 0 || macTemp || manual) {
+                        const msg = loteMac.length > 0
+                            ? `Existem <strong>${loteMac.length} equipamento(s)</strong> no lote atual. Deseja pausar a câmera e voltar para a seleção de modelo?`
+                            : 'Existe um código em andamento nesta leitura. Deseja voltar para a seleção de modelo?';
+                        const conf = await mConfirm('Sair da Câmera', msg, 'Voltar');
+                        if (!conf) {
+                            window.history.pushState({ app: 'smart-cnx', view: 'coleta' }, '');
+                            return;
+                        }
+                    }
+                    macTemp = '';
+                    mostrarPassoModelo();
+                    window.history.pushState({ app: 'smart-cnx', view: 'coleta' }, '');
+                    return;
+                }
+
+                // 2b. Da seleção de modelo -> volta para seleção de almoxarifado
+                if (stepAtiva.style.display !== 'none') {
                     const conf = await mConfirm(
                         'Voltar para Almoxarifado',
-                        'Deseja voltar para a seleção de almoxarifado? Os dados e itens desta conferência serão descartados.',
+                        loteMac.length > 0
+                            ? `Existem <strong>${loteMac.length} equipamento(s)</strong> no lote atual. Deseja voltar e descartar esta conferência?`
+                            : 'Deseja voltar para a seleção de almoxarifado?',
                         'Voltar'
                     );
                     if (!conf) {
                         window.history.pushState({ app: 'smart-cnx', view: 'coleta' }, '');
                         return;
                     }
-                }
-                await pararScanner();
-                loteMac = [];
-                renderizarLote();
-                modeloSelecionado = null;
-                macTemp = '';
-                setPickerValue('col-produto', 'lbl-pick-col-prod', '', '', 'Toque para buscar produto...');
-                stepAtiva.style.display = 'none';
-                stepSetup.style.display = 'block';
-                window.history.pushState({ app: 'smart-cnx', view: 'coleta' }, '');
-                return;
-            }
-
-            // 2c. Da seleção de almoxarifado -> valida form sujo antes de voltar à Home
-            if (coletaTemDadosPreenchidos()) {
-                const conf = await mConfirm(
-                    'Descartar Coleta',
-                    'Existem dados preenchidos nesta coleta. Deseja sair e descartá-los?',
-                    'Sair'
-                );
-                if (!conf) {
+                    await pararScanner();
+                    loteMac = [];
+                    renderizarLote();
+                    modeloSelecionado = null;
+                    macTemp = '';
+                    setPickerValue('col-produto', 'lbl-pick-col-prod', '', '', 'Toque para buscar produto...');
+                    stepAtiva.style.display = 'none';
+                    stepSetup.style.display = 'block';
                     window.history.pushState({ app: 'smart-cnx', view: 'coleta' }, '');
                     return;
                 }
-            }
-            await limparEstadoColeta();
-            viewAtual = 'home';
-            document.querySelectorAll('.m-view').forEach(v => v.classList.toggle('active', v.id === 'view-home'));
-            atualizarRodapePorView('home');
-            window.history.pushState({ app: 'smart-cnx', view: 'home', guard: true }, '');
-            return;
-        }
 
-        // 3. Outras telas (incluindo Minha Conta) -> volta para a tela inicial
-        if (viewAtual !== 'home') {
-            const saiu = await navegarParaView('home', false);
-            if (!saiu) {
-                window.history.pushState({ app: 'smart-cnx', view: viewAtual }, '');
+                // 2c. Da seleção de almoxarifado -> valida form sujo antes de voltar à Home
+                if (coletaTemDadosPreenchidos()) {
+                    const conf = await mConfirm(
+                        'Descartar Coleta',
+                        'Existem dados preenchidos nesta coleta. Deseja sair e descartá-los?',
+                        'Sair'
+                    );
+                    if (!conf) {
+                        window.history.pushState({ app: 'smart-cnx', view: 'coleta' }, '');
+                        return;
+                    }
+                }
+                await limparEstadoColeta();
+                viewAtual = 'home';
+                document.querySelectorAll('.m-view').forEach(v => v.classList.toggle('active', v.id === 'view-home'));
+                atualizarRodapePorView('home');
+                window.history.pushState({ app: 'smart-cnx', view: 'home', guard: true }, '');
                 return;
             }
-            window.history.pushState({ app: 'smart-cnx', view: 'home', guard: true }, '');
-            return;
-        }
 
-        // 4. Mantém no app evitando fechamento acidental
-        window.history.pushState({ app: 'smart-cnx', view: 'home', guard: true }, '');
+            // 3. Outras telas (incluindo Minha Conta) -> volta para a tela inicial
+            if (viewAtual !== 'home') {
+                const saiu = await navegarParaView('home', false);
+                if (!saiu) {
+                    window.history.pushState({ app: 'smart-cnx', view: viewAtual }, '');
+                    return;
+                }
+                window.history.pushState({ app: 'smart-cnx', view: 'home', guard: true }, '');
+                return;
+            }
+
+            // 4. Mantém no app evitando fechamento acidental
+            window.history.pushState({ app: 'smart-cnx', view: 'home', guard: true }, '');
+        } finally {
+            voltarEmAndamento = false;
+        }
     }
 
-    window.addEventListener('popstate', () => acionarVoltar());
+    window.addEventListener('popstate', () => acionarVoltar(true));
 
     // ================= MODAL SELETOR EM TABELA (ALMOXARIFADOS E PRODUTOS) =================
     function setPickerValue(inputId, labelId, valor, texto, placeholder) {
