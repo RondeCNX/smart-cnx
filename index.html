@@ -10,11 +10,9 @@
     <link rel="apple-touch-icon" href="/assets/imagens/Logo.png">
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#f8fafc">
     <title>Smart CNX - Login</title>
     
     <link rel="icon" href="assets/imagens/icon.ico" type="image/x-icon">
-    <link rel="manifest" href="manifest.json">
     
     <!-- Ícones Lucide -->
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -53,23 +51,26 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            padding: 3rem;
+            padding: 1.5rem 2.5rem;
             position: relative;
             z-index: 10;
+            overflow-y: auto;
         }
 
         /* O Card Flutuante */
         .login-card {
             width: 100%;
             max-width: 360px;
+            max-height: 94vh;
             background: white; /* Fundo sólido do cartão */
-            padding: 2.5rem 2rem;
+            padding: 2rem 2rem;
             border-radius: 16px;
             /* Sombra profunda para dar o efeito de flutuação */
             box-shadow: 0 25px 50px rgba(0,0,0,0.35); 
             border: 1px solid rgba(255,255,255,0.8);
             position: relative;
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
         /* Linha decorativa no topo do card com as cores da CNX */
@@ -83,17 +84,17 @@
 
         .login-header {
             text-align: center;
-            margin-bottom: 2rem;
-            margin-top: 0.5rem;
+            margin-bottom: 1.5rem;
+            margin-top: 0.25rem;
         }
         .login-header img {
-            width: 90px;
-            margin-bottom: 1rem;
+            width: 82px;
+            margin-bottom: 0.75rem;
             filter: drop-shadow(0 4px 6px rgba(0,0,0,0.05));
         }
         .login-header h2 {
             color: var(--cnx-blue);
-            font-size: 1.6rem;
+            font-size: 1.55rem;
             font-weight: 800;
             margin-bottom: 0.2rem;
         }
@@ -105,7 +106,7 @@
 
         /* ================= COMPONENTES DO FORMULÁRIO ================= */
         .input-group {
-            margin-bottom: 1.25rem;
+            margin-bottom: 1rem;
             position: relative;
         }
         .input-group label {
@@ -132,7 +133,7 @@
         }
         .input-wrapper input {
             width: 100%;
-            padding: 0.85rem 1rem 0.85rem 2.8rem;
+            padding: 0.8rem 1rem 0.8rem 2.8rem;
             border: 1.5px solid #e2e8f0;
             border-radius: 8px;
             font-size: 0.95rem;
@@ -173,7 +174,7 @@
             background-color: var(--cnx-orange);
             color: white;
             border: none;
-            padding: 0.9rem;
+            padding: 0.85rem;
             border-radius: 8px;
             font-weight: 700;
             font-size: 1rem;
@@ -183,7 +184,7 @@
             justify-content: center;
             align-items: center;
             gap: 8px;
-            margin-top: 1.5rem;
+            margin-top: 1.15rem;
             box-shadow: 0 4px 6px rgba(242, 101, 34, 0.25);
         }
         .btn-submit:hover {
@@ -201,12 +202,12 @@
             color: #ef4444;
             background-color: #fef2f2;
             border: 1px solid #fecaca;
-            padding: 0.75rem;
+            padding: 0.65rem 0.75rem;
             border-radius: 8px;
             font-size: 0.8rem;
             font-weight: 600;
             text-align: center;
-            margin-top: 1.2rem;
+            margin-top: 0.85rem;
             display: none;
             align-items: center;
             justify-content: center;
@@ -494,7 +495,7 @@
                 const isMobile = window.innerWidth <= BREAKPOINT_MOBILE;
                 if (isMobile) {
                     loginSubtitle.innerText = "Operação em Campo";
-                    btnText.innerText = "Acessar Operação";
+                    btnText.innerText = "Acessar Aplicação";
                 } else {
                     loginSubtitle.innerText = "Controle de Estoque";
                     btnText.innerText = "Acessar Sistema";
@@ -593,17 +594,10 @@
                     msgErro.style.display = "flex";
                     
                     btnSubmit.disabled = false;
-                    btnSubmit.innerHTML = `<span>${window.innerWidth <= BREAKPOINT_MOBILE ? 'Acessar Operação' : 'Acessar Sistema'}</span> <i data-lucide="arrow-right" style="width: 18px;"></i>`;
+                    btnSubmit.innerHTML = `<span>${window.innerWidth <= BREAKPOINT_MOBILE ? 'Acessar Aplicação' : 'Acessar Sistema'}</span> <i data-lucide="arrow-right" style="width: 18px;"></i>`;
                     lucide.createIcons();
                 }
             });
-
-            if ('serviceWorker' in navigator) {
-                window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
-                    .catch(err => console.error('PWA erro:', err));
-                });
-            }
         });
     </script>
 

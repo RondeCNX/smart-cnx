@@ -66,11 +66,21 @@
                     <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                         <div>
                             <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; display: block; margin-bottom: 4px;">Nova Senha</label>
-                            <input type="password" id="cfg-nova-senha" class="input-standard" placeholder="Mínimo 6 caracteres" style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+                            <div style="position: relative; display: flex; align-items: center;">
+                                <input type="password" id="cfg-nova-senha" class="input-standard" placeholder="Mínimo 6 caracteres" style="width: 100%; padding: 0.6rem 2.4rem 0.6rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+                                <button type="button" class="btn-toggle-senha" data-target="cfg-nova-senha" title="Mostrar/Ocultar senha" tabindex="-1" style="position: absolute; right: 8px; background: none; border: none; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px;">
+                                    <i data-lucide="eye-off" style="width: 16px; height: 16px;"></i>
+                                </button>
+                            </div>
                         </div>
                         <div>
                             <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; display: block; margin-bottom: 4px;">Confirmar Nova Senha</label>
-                            <input type="password" id="cfg-confirma-senha" class="input-standard" placeholder="Repita a nova senha" style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+                            <div style="position: relative; display: flex; align-items: center;">
+                                <input type="password" id="cfg-confirma-senha" class="input-standard" placeholder="Repita a nova senha" style="width: 100%; padding: 0.6rem 2.4rem 0.6rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+                                <button type="button" class="btn-toggle-senha" data-target="cfg-confirma-senha" title="Mostrar/Ocultar senha" tabindex="-1" style="position: absolute; right: 8px; background: none; border: none; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px;">
+                                    <i data-lucide="eye-off" style="width: 16px; height: 16px;"></i>
+                                </button>
+                            </div>
                         </div>
                         <button id="btn-cfg-salvar-senha" style="align-self: flex-end; background: var(--cnx-blue); color: white; border: none; padding: 0.55rem 1.25rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                             <i data-lucide="save" style="width: 15px; color: var(--cnx-orange);"></i> Atualizar Senha

@@ -617,10 +617,10 @@
             const { data: almoxs } = await window.db.from('almoxarifados').select('*').eq('status', 'ATIVO').order('codigo');
             almoxarifados = almoxs || [];
         } else {
-            tituloConsulta.innerHTML = `<i data-lucide="package" style="color: var(--cnx-orange); width: 18px;"></i> <span>Selecionar Produto</span>`;
+            tituloConsulta.innerHTML = `<i data-lucide="package" style="color: var(--cnx-orange); width: 18px;"></i> <span>Selecionar Produto (Consumo)</span>`;
             theadConsulta.innerHTML = `<tr><th style="padding: 0.6rem; width: 80px; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Código</th><th style="padding: 0.6rem; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Descrição</th><th style="padding: 0.6rem; width: 60px; text-align:center; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Ação</th></tr>`;
             const { data: prods } = await window.db.from('produtos').select('*').eq('status', 'ATIVO').order('descricao');
-            produtos = (prods || []).filter(p => String(p.tipo || p.tipo_item || '').toUpperCase().includes('PRODUTO'));
+            produtos = (prods || []).filter(p => String(p.tipo || p.tipo_item || '').trim().toUpperCase() === 'CONSUMO');
         }
         lucide.createIcons();
         renderizarListaConsulta();

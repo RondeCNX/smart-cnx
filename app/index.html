@@ -2,172 +2,538 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart CNX - Operação</title>
-    
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#F26522">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/assets/imagens/Logo.png">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Smart CNX - Mobile</title>
     <link rel="icon" href="../assets/imagens/icon.ico" type="image/x-icon">
-    <link rel="manifest" href="../manifest.json">
-    
-    <!-- Ícones Lucide -->
+
+    <!-- Bibliotecas -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    
-    <!-- Supabase CDN -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    
-    <!-- CSS Global -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <!-- CSS -->
     <link rel="stylesheet" href="../css/global.css">
-
-    <style>
-        /* Estilos Base Mobile PWA */
-        body {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            background-color: #f8fafc;
-            overflow: hidden; /* Evita pull-to-refresh acidental na casca */
-        }
-
-        /* Top Header Mobile */
-        .app-header {
-            background-color: var(--cnx-blue);
-            color: white;
-            padding: 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            z-index: 50;
-        }
-        .app-title {
-            font-weight: 800;
-            font-size: 1.2rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .app-title img { width: 24px; height: 24px; }
-        
-        .user-mini {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .user-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background-color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            border: 2px solid var(--cnx-orange);
-        }
-        .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
-        .user-avatar i { color: #cbd5e1; width: 16px; height: 16px; }
-
-        /* Área Central (Injeção de Módulos) */
-        .app-content {
-            flex: 1;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch; /* Scroll suave no iOS */
-            padding: 1rem;
-            position: relative;
-            padding-bottom: 80px; /* Espaço para a barra inferior */
-        }
-
-        /* Bottom Navigation Bar */
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background-color: white;
-            border-top: 1px solid #e2e8f0;
-            display: flex;
-            justify-content: space-around;
-            padding: 0.5rem 0;
-            padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); /* Suporte a iPhone Notch */
-            box-shadow: 0 -2px 15px rgba(0,0,0,0.05);
-            z-index: 50;
-        }
-        .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            color: #64748b;
-            font-size: 0.7rem;
-            font-weight: 600;
-            text-decoration: none;
-            gap: 4px;
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            transition: all 0.2s;
-        }
-        .nav-item.active {
-            color: var(--cnx-orange);
-        }
-        .nav-item.active i {
-            stroke-width: 2.5px;
-        }
-        
-        /* Loader Centralizado */
-        .loader-inicial {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: var(--cnx-blue);
-            font-weight: 700;
-            gap: 10px;
-        }
-    </style>
+    <link rel="stylesheet" href="css/mobile.css">
 </head>
-<body>
+<body class="m-bg-fundo">
+    <div class="m-overlay-fundo"></div>
 
-    <!-- CABEÇALHO MOBILE -->
-    <header class="app-header">
-        <div class="app-title">
-            <img src="../assets/imagens/Logo_Login.png" alt="Logo" onerror="this.src='../assets/imagens/Logo.png'">
-            <span>CNX Operação</span>
-        </div>
-        <div class="user-mini" onclick="fazerLogout()">
-            <div class="user-avatar" id="mobile-avatar">
-                <i data-lucide="user"></i>
+    <div class="mobile-shell">
+        <!-- CABEÇALHO -->
+        <header class="m-header">
+            <button type="button" class="m-header-brand" id="btn-abrir-sobre">
+                <img src="../assets/imagens/Logo.png" alt="Logo CNX">
+                <span class="m-brand-main">CNX</span>
+                <span class="m-brand-sub">Telecom</span>
+            </button>
+
+            <button type="button" class="m-header-menu-btn" id="btn-abrir-menu-header" title="Menu">
+                <i data-lucide="menu"></i>
+            </button>
+        </header>
+
+        <!-- ÁREA PRINCIPAL -->
+        <main class="m-main">
+
+            <!-- ================= TELA INICIAL (LIMPA — SOMENTE PLANO DE FUNDO) ================= -->
+            <section class="m-view active" id="view-home"></section>
+
+            <!-- ================= TELA: COLETA DE MAC EM LOTE ================= -->
+            <section class="m-view" id="view-coleta">
+                <div class="m-view-topbar">
+                    <button type="button" class="m-back-btn" id="btn-voltar-coleta">
+                        <i data-lucide="arrow-left"></i> Voltar
+                    </button>
+                    <span>Coleta de MAC</span>
+                </div>
+
+                <!-- ETAPA 0: ABRIR CONFERÊNCIA -->
+                <div id="coleta-step-setup" class="m-card">
+                    <div class="m-card-title">
+                        <i data-lucide="scan-barcode"></i>
+                        <span>Nova Conferência de MAC</span>
+                    </div>
+                    <p class="m-card-desc">Selecione o almoxarifado para iniciar a captura em lote via câmera.</p>
+
+                    <div class="m-field">
+                        <label>Almoxarifado *</label>
+                        <input type="hidden" id="col-almoxarifado">
+                        <button type="button" class="m-picker-btn" id="btn-pick-col-almox">
+                            <span id="lbl-pick-col-almox" class="m-picker-placeholder">Toque para buscar almoxarifado...</span>
+                            <i data-lucide="search"></i>
+                        </button>
+                    </div>
+
+                    <div class="m-field">
+                        <label>Tipo de Conferência</label>
+                        <input type="text" id="col-tipo" class="m-input" value="Estoque" readonly style="background: #f1f5f9; color: var(--cnx-blue); font-weight: 800;">
+                    </div>
+
+                    <button type="button" id="btn-iniciar-conferencia" class="m-btn-primary">
+                        <i data-lucide="play"></i> Iniciar Conferência
+                    </button>
+                </div>
+
+                <!-- ETAPA ATIVA: FLUXO GUIADO + LOTE -->
+                <div id="coleta-step-ativa" style="display: none; flex-direction: column; gap: 12px;">
+                    <div class="m-conf-banner">
+                        <div>
+                            <small id="lbl-conf-tipo">ESTOQUE</small>
+                            <strong id="lbl-conf-almox">-</strong>
+                        </div>
+                        <button type="button" id="btn-trocar-almox" class="m-btn-ghost-sm" title="Trocar Almoxarifado">
+                            <i data-lucide="repeat"></i>
+                        </button>
+                    </div>
+
+                    <!-- PASSO 1: MODELO DA ONU -->
+                    <div id="coleta-passo-modelo" class="m-card">
+                        <div class="m-step-badge">PASSO 1 DE 3</div>
+                        <h3 class="m-step-title">Informe o modelo da ONU</h3>
+
+                        <div class="m-field">
+                            <label>Modelo / Produto *</label>
+                            <input type="hidden" id="col-produto">
+                            <button type="button" class="m-picker-btn" id="btn-pick-col-prod">
+                                <span id="lbl-pick-col-prod" class="m-picker-placeholder">Toque para buscar produto...</span>
+                                <i data-lucide="search"></i>
+                            </button>
+                        </div>
+
+                        <label class="m-check-row">
+                            <input type="checkbox" id="col-manter-modelo" checked>
+                            <span>Manter este modelo para os próximos equipamentos</span>
+                        </label>
+
+                        <button type="button" id="btn-confirmar-modelo" class="m-btn-primary">
+                            <i data-lucide="camera"></i> Avançar para Leitura do MAC
+                        </button>
+                    </div>
+
+                    <!-- PASSO 2 & 3: LEITURA VIA CÂMERA -->
+                    <div id="coleta-passo-scanner" class="m-card" style="display: none;">
+                        <div class="m-step-header">
+                            <span class="m-step-badge" id="lbl-scan-badge">PASSO 2 DE 3</span>
+                            <button type="button" id="btn-mudar-modelo" class="m-link-btn">Trocar Modelo</button>
+                        </div>
+                        <h3 class="m-step-title" id="lbl-scan-titulo">Leia o MAC (GPON) da ONU</h3>
+                        <p class="m-card-desc" id="lbl-scan-sub">Alinhe o código de barras na linha laranja abaixo.</p>
+
+                        <div class="m-modelo-pill">
+                            <i data-lucide="cpu"></i>
+                            <span id="lbl-modelo-atual">-</span>
+                        </div>
+
+                        <div id="lbl-mac-capturado-box" class="m-mac-pill" style="display: none;">
+                            <span>MAC GPON:</span>
+                            <strong id="lbl-mac-capturado">-</strong>
+                        </div>
+
+                        <div class="scanner-box">
+                            <div id="qr-reader"></div>
+                            <div class="scanner-laser"></div>
+                        </div>
+
+                        <div class="m-manual-row">
+                            <input type="text" id="col-input-manual" class="m-input input-upper" placeholder="Ou digite o código manualmente...">
+                            <button type="button" id="btn-confirmar-manual" class="m-btn-circle-orange" title="Confirmar">
+                                <i data-lucide="check"></i>
+                            </button>
+                        </div>
+
+                        <button type="button" id="btn-voltar-passo-scan" class="m-btn-outline" style="margin-top: 8px; display: none;">
+                            <i data-lucide="arrow-left"></i> Ler MAC (GPON) novamente
+                        </button>
+                    </div>
+
+                    <!-- LISTA DO LOTE CAPTURADO -->
+                    <div class="m-card">
+                        <div class="m-lote-header">
+                            <div class="m-card-title" style="margin: 0;">
+                                <i data-lucide="layers"></i>
+                                <span>Lote Atual (<strong id="lbl-qtd-lote">0</strong>)</span>
+                            </div>
+                            <button type="button" id="btn-limpar-lote" class="m-link-btn danger" style="display: none;">Limpar</button>
+                        </div>
+
+                        <div id="lista-lote-mac" class="m-lote-list">
+                            <div class="m-empty-sm">Nenhum equipamento bipado ainda.</div>
+                        </div>
+
+                        <button type="button" id="btn-enviar-lote" class="m-btn-success" disabled style="margin-top: 12px;">
+                            <i data-lucide="cloud-upload"></i> Enviar Lote para o Sistema
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= TELA: REQUISIÇÕES ================= -->
+            <section class="m-view" id="view-requisicoes">
+                <div class="m-view-topbar">
+                    <button type="button" class="m-back-btn" id="btn-voltar-req">
+                        <i data-lucide="arrow-left"></i> Voltar
+                    </button>
+                    <span>Minhas Requisições</span>
+                </div>
+
+                <div class="m-toolbar">
+                    <select id="req-filtro-status" class="m-input" style="flex: 1;">
+                        <option value="">Todos os Status</option>
+                        <option value="PENDENTE">Pendente</option>
+                        <option value="APROVADA">Aprovada</option>
+                        <option value="ENVIADA">Enviada</option>
+                        <option value="CONCLUIDA">Concluída</option>
+                        <option value="REPROVADA">Reprovada</option>
+                    </select>
+                    <button type="button" id="btn-nova-req-mobile" class="m-btn-circle-orange" title="Nova Requisição">
+                        <i data-lucide="plus"></i>
+                    </button>
+                    <button type="button" id="btn-refresh-req-mobile" class="m-btn-circle-outline" title="Atualizar">
+                        <i data-lucide="refresh-cw"></i>
+                    </button>
+                </div>
+
+                <div id="lista-req-mobile" class="m-cards-stack">
+                    <div class="m-empty">Carregando requisições...</div>
+                </div>
+            </section>
+
+            <!-- ================= TELA: MINHA CONTA ================= -->
+            <section class="m-view" id="view-conta">
+                <div class="m-view-topbar">
+                    <button type="button" class="m-back-btn" id="btn-voltar-conta">
+                        <i data-lucide="arrow-left"></i> Voltar
+                    </button>
+                    <span>Minha Conta</span>
+                </div>
+
+                <div class="m-card">
+                    <div class="m-card-title">
+                        <i data-lucide="user-circle"></i>
+                        <span>Meu Perfil</span>
+                    </div>
+                    <div class="m-profile-row">
+                        <div class="m-avatar-lg" id="m-conta-avatar">
+                            <i data-lucide="user"></i>
+                        </div>
+                        <div class="m-profile-info">
+                            <strong id="m-conta-nome">-</strong>
+                            <span id="m-conta-email">-</span>
+                            <span class="m-role-badge" id="m-conta-cargo">-</span>
+                        </div>
+                    </div>
+                    <input type="file" id="m-input-avatar" accept="image/*" style="display: none;">
+                    <button type="button" id="btn-m-upload-avatar" class="m-btn-outline" style="margin-top: 12px;">
+                        <i data-lucide="camera"></i> Alterar Foto de Perfil
+                    </button>
+                </div>
+
+                <div class="m-card">
+                    <div class="m-card-title">
+                        <i data-lucide="key-round"></i>
+                        <span>Alterar Senha</span>
+                    </div>
+                    <div class="m-field">
+                        <label>Nova Senha</label>
+                        <div class="m-pass-wrap">
+                            <input type="password" id="m-nova-senha" class="m-input" placeholder="Mínimo 6 caracteres">
+                            <button type="button" class="m-toggle-pass" data-target="m-nova-senha">
+                                <i data-lucide="eye-off"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="m-field">
+                        <label>Confirmar Nova Senha</label>
+                        <div class="m-pass-wrap">
+                            <input type="password" id="m-confirma-senha" class="m-input" placeholder="Repita a nova senha">
+                            <button type="button" class="m-toggle-pass" data-target="m-confirma-senha">
+                                <i data-lucide="eye-off"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="button" id="btn-m-salvar-senha" class="m-btn-primary">
+                        <i data-lucide="save"></i> Atualizar Senha
+                    </button>
+                </div>
+
+                <div class="m-card">
+                    <button type="button" id="btn-m-logout" class="m-btn-danger">
+                        <i data-lucide="log-out"></i> Sair do Sistema
+                    </button>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- RODAPÉ + BOTÃO REDONDO (+) -->
+        <footer class="m-footer">
+            <div class="m-footer-user" id="btn-footer-conta">
+                <div class="m-footer-avatar" id="m-footer-avatar">
+                    <i data-lucide="user"></i>
+                </div>
+                <div class="m-footer-info">
+                    <span class="m-footer-name" id="m-footer-nome">Carregando...</span>
+                    <span class="m-footer-role">Perfil: <strong id="m-footer-cargo">...</strong></span>
+                </div>
             </div>
-            <!-- Ícone discreto de logout ao lado do avatar -->
-            <i data-lucide="log-out" style="width: 16px; opacity: 0.8;"></i>
+
+            <button type="button" class="m-fab-btn" id="btn-fab-acoes" title="Nova Ação">
+                <i data-lucide="plus"></i>
+            </button>
+        </footer>
+    </div>
+
+    <!-- MODAL: MENU DO CABEÇALHO (3 RISCOS) -->
+    <div id="modal-menu-header" class="m-modal-overlay">
+        <div class="m-modal-sheet">
+            <div class="m-modal-header">
+                <h3>Menu Principal</h3>
+                <button type="button" class="m-modal-close" data-close="modal-menu-header"><i data-lucide="x"></i></button>
+            </div>
+            <div class="m-modal-body" style="display: flex; flex-direction: column; gap: 10px;">
+                <button type="button" class="m-action-sheet-btn" id="btn-menu-home">
+                    <div class="m-home-icon gray"><i data-lucide="home"></i></div>
+                    <div>
+                        <strong>Tela Inicial</strong>
+                        <span>Voltar ao início</span>
+                    </div>
+                </button>
+                <button type="button" class="m-action-sheet-btn" id="btn-menu-coleta">
+                    <div class="m-home-icon orange"><i data-lucide="scan-barcode"></i></div>
+                    <div>
+                        <strong>Coleta de MAC</strong>
+                        <span>Conferência em lote via câmera</span>
+                    </div>
+                </button>
+                <button type="button" class="m-action-sheet-btn" id="btn-menu-req">
+                    <div class="m-home-icon blue"><i data-lucide="truck"></i></div>
+                    <div>
+                        <strong>Requisições</strong>
+                        <span>Solicitar e confirmar recebimento</span>
+                    </div>
+                </button>
+                <button type="button" class="m-action-sheet-btn" id="btn-menu-conta">
+                    <div class="m-home-icon green"><i data-lucide="user-cog"></i></div>
+                    <div>
+                        <strong>Minha Conta</strong>
+                        <span>Avatar, senha e sair</span>
+                    </div>
+                </button>
+            </div>
         </div>
-    </header>
+    </div>
 
-    <!-- ÁREA CENTRAL (Onde as telas HTML entram) -->
-    <main class="app-content" id="app-content">
-        <div class="loader-inicial">
-            <i data-lucide="loader-2" class="lucide-spin" style="width: 32px; height: 32px; color: var(--cnx-orange);"></i>
-            A carregar módulos...
+    <!-- MODAL: MENU RÁPIDO DO BOTÃO REDONDO (+) -->
+    <div id="modal-fab-menu" class="m-modal-overlay">
+        <div class="m-modal-sheet">
+            <div class="m-modal-header">
+                <h3>Adicionar</h3>
+                <button type="button" class="m-modal-close" data-close="modal-fab-menu"><i data-lucide="x"></i></button>
+            </div>
+            <div class="m-modal-body" style="display: flex; flex-direction: column; gap: 10px;">
+                <button type="button" class="m-action-sheet-btn" id="btn-fab-coleta">
+                    <div class="m-home-icon orange"><i data-lucide="scan-barcode"></i></div>
+                    <div>
+                        <strong>Nova Coleta de MAC</strong>
+                        <span>Iniciar conferência em lote com câmera</span>
+                    </div>
+                </button>
+                <button type="button" class="m-action-sheet-btn" id="btn-fab-nova-req">
+                    <div class="m-home-icon blue"><i data-lucide="file-plus-2"></i></div>
+                    <div>
+                        <strong>Nova Requisição</strong>
+                        <span>Solicitar materiais para seu almoxarifado</span>
+                    </div>
+                </button>
+            </div>
         </div>
-    </main>
+    </div>
 
-    <!-- BOTTOM NAVIGATION (PWA Mobile) -->
-    <nav class="bottom-nav">
-        <a href="#" class="nav-item active" onclick="navegarApp('home', this)">
-            <i data-lucide="home"></i>
-            <span>Início</span>
-        </a>
-        <a href="#" class="nav-item" onclick="navegarApp('movimentacoes', this)">
-            <i data-lucide="arrow-right-left"></i>
-            <span>Mover</span>
-        </a>
-        <a href="#" class="nav-item" onclick="navegarApp('scanner', this)">
-            <i data-lucide="scan-line"></i>
-            <span>Ler QR</span>
-        </a>
-    </nav>
+    <!-- MODAL: SOBRE -->
+    <div id="modal-sobre-mobile" class="m-modal-overlay" style="align-items: center;">
+        <div class="m-popup-box" style="text-align: left;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0;">
+                <img src="../assets/imagens/Logo.png" alt="Logo" style="width: 44px; height: 44px; object-fit: contain;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1rem; color: var(--cnx-blue);">Smart CNX — Mobile</h3>
+                    <span style="font-size: 0.72rem; color: #64748b; font-weight: 600;">Operação em Campo</span>
+                </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; color: #334155; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #64748b; font-weight: 700;">Versão:</span>
+                    <strong id="m-sobre-versao">2.0</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #64748b; font-weight: 700;">Atualizado em:</span>
+                    <strong id="m-sobre-data">-</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #64748b; font-weight: 700;">Desenvolvedor:</span>
+                    <strong>Rondinele Barbosa Santos</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #64748b; font-weight: 700;">Status:</span>
+                    <span style="background: #dcfce7; color: #166534; padding: 2px 10px; border-radius: 99px; font-size: 0.68rem; font-weight: 800;">CONECTADO</span>
+                </div>
+            </div>
+            <button type="button" class="m-btn-primary" data-close="modal-sobre-mobile">Fechar</button>
+        </div>
+    </div>
 
-    <!-- Scripts de Configuração e Motor Mobile -->
+    <!-- MODAL: NOVA / EDITAR REQUISIÇÃO (ALTURA FIXA + ABAS) -->
+    <div id="modal-req-form" class="m-modal-overlay">
+        <div class="m-modal-sheet m-modal-sheet-fixed">
+            <div class="m-modal-header">
+                <h3 id="modal-req-titulo">Nova Requisição</h3>
+                <button type="button" class="m-modal-close" id="btn-fechar-req-form"><i data-lucide="x"></i></button>
+            </div>
+
+            <div class="m-tabs-bar">
+                <button type="button" class="m-tab-btn active" data-req-tab="geral">
+                    <i data-lucide="warehouse"></i>
+                    <span>Dados Gerais</span>
+                </button>
+                <button type="button" class="m-tab-btn" data-req-tab="produtos">
+                    <i data-lucide="package"></i>
+                    <span>Produtos (<strong id="lbl-req-qtd-itens">0</strong>)</span>
+                </button>
+                <button type="button" class="m-tab-btn" data-req-tab="obs">
+                    <i data-lucide="file-text"></i>
+                    <span>Observações</span>
+                </button>
+            </div>
+
+            <div class="m-modal-body">
+                <input type="hidden" id="req-edit-id">
+
+                <!-- ABA 1: DADOS GERAIS -->
+                <div class="m-tab-pane active" id="req-tab-geral">
+                    <div class="m-field">
+                        <label>Almoxarifado Solicitante *</label>
+                        <input type="hidden" id="req-almox-sol">
+                        <button type="button" class="m-picker-btn" id="btn-pick-req-sol">
+                            <span id="lbl-pick-req-sol" class="m-picker-placeholder">Toque para buscar solicitante...</span>
+                            <i data-lucide="search"></i>
+                        </button>
+                    </div>
+
+                    <div class="m-field">
+                        <label>Almoxarifado Abastecedor *</label>
+                        <input type="hidden" id="req-almox-abast">
+                        <button type="button" class="m-picker-btn" id="btn-pick-req-abast">
+                            <span id="lbl-pick-req-abast" class="m-picker-placeholder">Toque para buscar abastecedor...</span>
+                            <i data-lucide="search"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ABA 2: PRODUTOS -->
+                <div class="m-tab-pane" id="req-tab-produtos">
+                    <div class="m-field">
+                        <label>Produto *</label>
+                        <input type="hidden" id="req-item-prod">
+                        <input type="hidden" id="req-item-prod-nome">
+                        <button type="button" class="m-picker-btn" id="btn-pick-req-prod">
+                            <span id="lbl-pick-req-prod" class="m-picker-placeholder">Toque para buscar produto...</span>
+                            <i data-lucide="search"></i>
+                        </button>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+                        <input type="number" id="req-item-qtd" class="m-input" value="1" min="1" style="flex: 1; text-align: center;" placeholder="Quantidade">
+                        <button type="button" id="btn-req-add-item" class="m-btn-circle-orange" title="Adicionar Item">
+                            <i data-lucide="plus"></i>
+                        </button>
+                    </div>
+
+                    <div id="req-form-itens-lista" class="m-lote-list">
+                        <div class="m-empty-sm">Nenhum item adicionado.</div>
+                    </div>
+                </div>
+
+                <!-- ABA 3: OBSERVAÇÕES -->
+                <div class="m-tab-pane" id="req-tab-obs">
+                    <div class="m-field">
+                        <label>Observações da Solicitação</label>
+                        <textarea id="req-obs" class="m-input" rows="7" placeholder="Descreva informações adicionais, urgência ou destino..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="m-modal-footer">
+                <button type="button" class="m-btn-outline" id="btn-cancelar-req-form">Cancelar</button>
+                <button type="button" class="m-btn-primary" id="btn-req-salvar">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: VISUALIZAR / CONFIRMAR RECEBIMENTO -->
+    <div id="modal-req-detalhes" class="m-modal-overlay">
+        <div class="m-modal-sheet">
+            <div class="m-modal-header">
+                <h3 id="modal-det-titulo">Detalhes da Requisição</h3>
+                <button type="button" class="m-modal-close" data-close="modal-req-detalhes"><i data-lucide="x"></i></button>
+            </div>
+            <div class="m-modal-body" id="modal-det-body"></div>
+            <div class="m-modal-footer" id="modal-det-footer"></div>
+        </div>
+    </div>
+
+    <!-- MODAL: BUSCA EM TABELA (ALMOXARIFADOS E PRODUTOS) -->
+    <div id="modal-seletor" class="m-modal-overlay" style="z-index: 11000;">
+        <div class="m-modal-sheet m-modal-sheet-fixed">
+            <div class="m-modal-header">
+                <h3 id="seletor-titulo">Selecionar</h3>
+                <button type="button" class="m-modal-close" id="btn-fechar-seletor"><i data-lucide="x"></i></button>
+            </div>
+            <div class="m-seletor-searchbar">
+                <i data-lucide="search"></i>
+                <input type="text" id="seletor-input-busca" class="m-input" placeholder="Buscar por código ou descrição...">
+            </div>
+            <div class="m-seletor-table-wrap">
+                <table class="m-seletor-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 86px;">Código</th>
+                            <th>Descrição</th>
+                        </tr>
+                    </thead>
+                    <tbody id="seletor-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST RÁPIDO DE FEEDBACK (LEITURA DE MAC / SÉRIE) -->
+    <div id="m-toast" class="m-toast"></div>
+
+    <!-- POP-UP PERSONALIZADO (ALERT / CONFIRM) -->
+    <div id="m-popup" class="m-modal-overlay" style="z-index: 12000; align-items: center;">
+        <div class="m-popup-box">
+            <h3 id="m-popup-title">Aviso</h3>
+            <p id="m-popup-msg"></p>
+            <div class="m-popup-actions">
+                <button type="button" id="m-popup-cancel" class="m-btn-outline">Cancelar</button>
+                <button type="button" id="m-popup-ok" class="m-btn-primary">OK</button>
+            </div>
+        </div>
+    </div>
+
     <script src="../config.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/mobile.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(() => {});
+            });
+        }
+    </script>
 </body>
 </html>

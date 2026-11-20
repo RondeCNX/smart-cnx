@@ -156,7 +156,6 @@
 
             const pode = (mod, acao) => isAdmin || !!permsCargo?.[mod]?.[acao];
 
-            // Controle granular de cada aba de Configurações
             const mapaAbas = {
                 'cfg-tab-conta': pode('cfg_conta', 'view') || true,
                 'cfg-tab-regras': pode('cfg_regras', 'view'),
@@ -172,7 +171,6 @@
                 if (mapaAbas[alvo] === false) btn.style.display = 'none';
             });
 
-            // Ações específicas dentro das abas
             if (!pode('cfg_conta', 'edit') && !isAdmin) {
                 if (permsCargo?.cfg_conta && permsCargo.cfg_conta.edit === false) {
                     moduloContent.querySelector('#btn-cfg-upload-avatar').style.display = 'none';
@@ -222,6 +220,19 @@
     // ================= ABA 1: MINHA CONTA =================
     const inAvatarFile = moduloContent.querySelector('#cfg-input-avatar');
     const btnUploadAvatar = moduloContent.querySelector('#btn-cfg-upload-avatar');
+
+    // Toggle Mostrar/Ocultar Senha
+    moduloContent.querySelectorAll('.btn-toggle-senha').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const input = moduloContent.querySelector(`#${btn.dataset.target}`);
+            if (!input) return;
+            const isPass = input.type === 'password';
+            input.type = isPass ? 'text' : 'password';
+            btn.innerHTML = `<i data-lucide="${isPass ? 'eye' : 'eye-off'}" style="width: 16px; height: 16px;"></i>`;
+            btn.style.color = isPass ? 'var(--cnx-orange)' : '#94a3b8';
+            lucide.createIcons();
+        });
+    });
 
     btnUploadAvatar.addEventListener('click', () => inAvatarFile.click());
     inAvatarFile.addEventListener('change', async (e) => {
@@ -665,7 +676,6 @@
             mac: 'MAC', numero_serie: 'Nº de Série'
         };
 
-        // Mapa de telas e ações da menuEstrutura
         const mapaTelas = {};
         const mapaAcoes = {};
         if (typeof menuEstrutura !== 'undefined') {
@@ -708,7 +718,6 @@
             const lista = [];
             const mods = [...new Set([...Object.keys(antP || {}), ...Object.keys(novP || {})])];
             mods.forEach(m => {
-                // Ignora chaves obsoletas que não existem mais na menuEstrutura
                 if (Object.keys(mapaTelas).length > 0 && !mapaTelas[m]) return;
                 const aM = (antP && antP[m]) || {};
                 const nM = (novP && novP[m]) || {};
@@ -850,7 +859,6 @@
         `).join('');
         lucide.createIcons();
 
-        // Hint inteligente (posiciona acima ou abaixo automaticamente)
         const tooltip = document.getElementById('aud-smart-tooltip');
         tbody.querySelectorAll('.aud-celula-resumo').forEach(td => {
             td.addEventListener('mouseenter', () => {
@@ -1048,7 +1056,6 @@
         window.appAlert('Backup Gerado', `Exportação de ${tabela} concluída (${data.length} registros).`, 'success');
     }
 
-    // Parser CSV robusto (suporta ; ou , e campos entre aspas)
     function parseCSV(texto) {
         const limpo = texto.replace(/^\uFEFF/, '').trim();
         const linhas = limpo.split(/\r?\n/).filter(l => l.trim() !== '');
@@ -1166,11 +1173,10 @@
     }
 
     async function carregarEstatisticasSupabase() {
-        const LIMITE_DB = 500 * 1024 * 1024; // 500 MB (Plano Gratuito)
-        const LIMITE_ST = 1024 * 1024 * 1024; // 1 GB (Plano Gratuito)
+        const LIMITE_DB = 500 * 1024 * 1024;
+        const LIMITE_ST = 1024 * 1024 * 1024;
 
         try {
-            // 1. Estatísticas do Banco via RPC
             const { data: dbStats, error: rpcErr } = await window.db.rpc('get_db_stats');
             if (!rpcErr && dbStats) {
                 const dbBytes = Number(dbStats.db_bytes) || 0;
@@ -1186,7 +1192,6 @@
                 moduloContent.querySelector('#stat-db-disp').innerText = '500 MB';
             }
 
-            // 2. Estatísticas do Storage (soma arquivos e tamanhos nos buckets)
             const buckets = ['requisicoes-assinaturas', 'emprestimos-assinaturas', 'avatar_usuario'];
             let totalArquivos = 0;
             let totalBytesSt = 0;

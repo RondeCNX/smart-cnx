@@ -884,13 +884,28 @@ function renderizarSidebar() {
         });
         if (itemsHtml) html += `<div class="sidebar-category">${cat}</div>${itemsHtml}`;
     }
+
+    // Garante que a tela de Configurações apareça quando minimizada
+    if (janelasAbertas['configuracoes'] && idAtual !== 'configuracoes') {
+        html += `
+            <div class="sidebar-category">Sistema</div>
+            <div class="sidebar-item">
+                <div class="item-info" onclick="restaurarJanela('configuracoes')" style="flex:1;">
+                    <i data-lucide="settings" class="item-icon"></i> Configurações
+                </div>
+                <button class="btn-close-sidebar" onclick="fecharJanelaPeloSidebar(event, 'configuracoes')" title="Fechar Tela">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+        `;
+    }
+
     if (html === '<div class="sidebar-header">Telas Abertas</div>') {
         html += '<div style="padding: 1.5rem; text-align: center; color: #94a3b8; font-size: 0.75rem;">Nenhuma tela minimizada.</div>';
     }
     sidebarPanel.innerHTML = html;
     lucide.createIcons();
 }
-
 
 async function navegarPara(rota) {
     document.querySelectorAll('.dropdown-menu').forEach(el => el.classList.remove('show'));
