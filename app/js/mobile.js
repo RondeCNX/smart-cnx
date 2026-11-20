@@ -95,6 +95,7 @@
     }
 
     let toastTimer = null;
+
     function mostrarToast(msg, tipo = 'success', duracao = 1800) {
         const el = document.getElementById('m-toast');
         if (!el) return;
@@ -104,6 +105,42 @@
         toastTimer = setTimeout(() => {
             el.classList.remove('show');
         }, duracao);
+    }
+
+    let audioCtx = null;
+    function tocarBipConfirmacao(tipo = 'mac') {
+        try {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) return;
+            if (!audioCtx) audioCtx = new AudioContextClass();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const agora = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(tipo === 'serial' ? 1250 : 920, agora);
+
+            gain.gain.setValueAtTime(0.001, agora);
+            gain.gain.exponentialRampToValueAtTime(0.25, agora + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, agora + (tipo === 'serial' ? 0.18 : 0.12));
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(agora);
+            osc.stop(agora + (tipo === 'serial' ? 0.19 : 0.13));
+        } catch (err) {
+            console.warn('Áudio indisponível:', err);
+        }
+    }
+
+    function focarAreaCamera() {
+        const cardScanner = document.getElementById('coleta-passo-scanner');
+        if (!cardScanner) return;
+        setTimeout(() => {
+            cardScanner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 120);
     }
 
     // ================= CONTROLE DE MODAIS E BOTÃO VOLTAR (HISTORY API) =================
@@ -535,6 +572,7 @@
             document.getElementById('btn-voltar-passo-scan').style.display = 'flex';
         }
 
+        focarAreaCamera();
         await iniciarScanner();
     }
 
@@ -548,6 +586,7 @@
                 { fps: 12, qrbox: { width: 260, height: 110 } },
                 (texto) => processarCodigoCapturado(texto)
             );
+            focarAreaCamera();
         } catch (err) {
             scannerAtivo = false;
             console.warn('Câmera indisponível, use entrada manual:', err);
@@ -575,6 +614,7 @@
                 return;
             }
             macTemp = codigo;
+            tocarBipConfirmacao('mac');
             mostrarToast('MAC lido! Agora leia o Nº de Série.', 'info', 2200);
             iniciarEtapaScan('SERIAL');
             setTimeout(() => { bloqueioLeitura = false; }, 900);
@@ -591,6 +631,7 @@
                 numero_serie: codigo
             });
             renderizarLote();
+            tocarBipConfirmacao('serial');
             mostrarToast(`Nº de Série lido! (${loteMac.length} no lote)`, 'success', 2000);
 
             const manter = document.getElementById('col-manter-modelo').checked;
