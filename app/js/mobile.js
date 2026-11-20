@@ -1,11 +1,46 @@
 // app/js/mobile.js
 (async function initAppMobile() {
+
+    // ================= BLOQUEIO DO GERENCIADOR DE SENHAS (GOOGLE/CHROME) =================
+    function bloquearGerenciadorSenhasMobile() {
+        const campos = document.querySelectorAll('input, textarea');
+
+        campos.forEach((el, idx) => {
+            if (el.type === 'hidden' || el.type === 'checkbox' || el.type === 'file') return;
+
+            el.setAttribute('data-lpignore', 'true');
+            el.setAttribute('data-1p-ignore', 'true');
+            el.setAttribute('data-form-type', 'other');
+            el.setAttribute('spellcheck', 'false');
+            el.setAttribute('autocorrect', 'off');
+
+            if (el.type === 'password') {
+                // Impede o Chrome de associar os campos de "Alterar Senha" a um login
+                el.setAttribute('autocomplete', 'new-password');
+                el.setAttribute('name', `cnx_pass_${idx}_${Date.now()}`);
+
+                // Mantém readonly enquanto não está em foco para o navegador ignorar o campo oculto
+                el.readOnly = true;
+                el.addEventListener('focus', () => { el.readOnly = false; });
+                el.addEventListener('blur', () => { el.readOnly = true; });
+            } else {
+                // "one-time-code" ou valor aleatório força o Chrome a não sugerir nem salvar senha
+                el.setAttribute('autocomplete', 'off');
+                el.setAttribute('name', `cnx_field_${idx}_${Date.now()}`);
+            }
+        });
+    }
+
+    bloquearGerenciadorSenhasMobile();
+
     if (window.lucide) lucide.createIcons();
 
-    // Converte automaticamente para CAIXA ALTA enquanto digita (exceto senhas)
+
+    // Converte automaticamente para CAIXA ALTA enquanto digita (exceto campos de senha)
     document.addEventListener('input', (e) => {
         const el = e.target;
         if (!el) return;
+        if (el.id === 'm-nova-senha' || el.id === 'm-confirma-senha') return;
         const isTexto = (el.tagName === 'TEXTAREA') || (el.tagName === 'INPUT' && el.type === 'text');
         if (!isTexto) return;
 
@@ -108,6 +143,24 @@
     }
 
     let audioCtx = null;
+    function desbloquearAudio() {
+        try {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) return;
+            if (!audioCtx) audioCtx = new AudioContextClass();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            // Pulso silencioso para liberar a saída de áudio no Android/iOS
+            const buffer = audioCtx.createBuffer(1, 1, 22050);
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioCtx.destination);
+            source.start(0);
+        } catch {}
+    }
+    document.addEventListener('touchstart', desbloquearAudio, { once: true, passive: true });
+    document.addEventListener('click', desbloquearAudio, { once: true });
+
     function tocarBipConfirmacao(tipo = 'mac') {
         try {
             const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -115,21 +168,31 @@
             if (!audioCtx) audioCtx = new AudioContextClass();
             if (audioCtx.state === 'suspended') audioCtx.resume();
 
+            const tocarNota = (freq, inicio, duracao) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, inicio);
+
+                gain.gain.setValueAtTime(0.001, inicio);
+                gain.gain.exponentialRampToValueAtTime(0.5, inicio + 0.015);
+                gain.gain.exponentialRampToValueAtTime(0.001, inicio + duracao);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(inicio);
+                osc.stop(inicio + duracao + 0.02);
+            };
+
             const agora = audioCtx.currentTime;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(tipo === 'serial' ? 1250 : 920, agora);
-
-            gain.gain.setValueAtTime(0.001, agora);
-            gain.gain.exponentialRampToValueAtTime(0.25, agora + 0.01);
-            gain.gain.exponentialRampToValueAtTime(0.001, agora + (tipo === 'serial' ? 0.18 : 0.12));
-
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start(agora);
-            osc.stop(agora + (tipo === 'serial' ? 0.19 : 0.13));
+            if (tipo === 'serial') {
+                // Bip duplo agudo ao concluir o equipamento (MAC + Série)
+                tocarNota(1050, agora, 0.11);
+                tocarNota(1400, agora + 0.13, 0.16);
+            } else {
+                // Bip simples ao ler o MAC
+                tocarNota(950, agora, 0.13);
+            }
         } catch (err) {
             console.warn('Áudio indisponível:', err);
         }
@@ -171,20 +234,79 @@
         return true;
     }
 
-    async function navegarParaView(novaView, registrarHistorico = true) {
-        if (novaView === viewAtual) return;
+    function coletaTemDadosPreenchidos() {
+        const almox = document.getElementById('col-almoxarifado')?.value;
+        const prod = document.getElementById('col-produto')?.value;
+        return Boolean(almox || prod || loteMac.length > 0 || macTemp);
+    }
 
-        if (viewAtual === 'coleta' && loteMac.length > 0) {
-            const conf = await mConfirm('Lote em Andamento', `Existem <strong>${loteMac.length} equipamento(s)</strong> no lote atual ainda não enviados. Deseja sair e manter o lote?`, 'Sair');
-            if (!conf) return;
+    async function limparEstadoColeta() {
+        await pararScanner();
+        loteMac = [];
+        renderizarLote();
+        confAlmoxId = null;
+        confAlmoxNome = '';
+        modeloSelecionado = null;
+        macTemp = '';
+        setPickerValue('col-almoxarifado', 'lbl-pick-col-almox', '', '', 'Toque para buscar almoxarifado...');
+        setPickerValue('col-produto', 'lbl-pick-col-prod', '', '', 'Toque para buscar produto...');
+        const inpManual = document.getElementById('col-input-manual');
+        if (inpManual) inpManual.value = '';
+        const stepAtiva = document.getElementById('coleta-step-ativa');
+        const stepSetup = document.getElementById('coleta-step-setup');
+        if (stepAtiva) stepAtiva.style.display = 'none';
+        if (stepSetup) stepSetup.style.display = 'block';
+    }
+
+    function contaTemDadosPreenchidos() {
+        const s1 = document.getElementById('m-nova-senha')?.value.trim() || '';
+        const s2 = document.getElementById('m-confirma-senha')?.value.trim() || '';
+        return Boolean(s1 || s2);
+    }
+
+    function limparEstadoConta() {
+        const s1 = document.getElementById('m-nova-senha');
+        const s2 = document.getElementById('m-confirma-senha');
+        if (s1) s1.value = '';
+        if (s2) s2.value = '';
+    }
+
+    function atualizarRodapePorView(view) {
+        const footer = document.querySelector('.m-footer');
+        if (!footer) return;
+        footer.classList.toggle('compact', view !== 'home');
+    }
+
+    async function navegarParaView(novaView, registrarHistorico = true) {
+        if (novaView === viewAtual) return true;
+
+        if (viewAtual === 'coleta' && coletaTemDadosPreenchidos()) {
+            const msg = loteMac.length > 0
+                ? `Existem <strong>${loteMac.length} equipamento(s)</strong> no lote atual ainda não enviados. Deseja sair e descartar os dados?`
+                : 'Existem dados preenchidos nesta coleta. Deseja sair e descartá-los?';
+            const conf = await mConfirm('Descartar Coleta', msg, 'Sair');
+            if (!conf) return false;
+            await limparEstadoColeta();
+        } else if (viewAtual === 'coleta') {
+            await limparEstadoColeta();
         }
 
-        if (viewAtual === 'coleta') await pararScanner();
+        if (viewAtual === 'conta' && contaTemDadosPreenchidos()) {
+            const conf = await mConfirm(
+                'Descartar Alterações',
+                'Existem alterações de senha não salvas na sua conta. Deseja sair e descartá-las?',
+                'Sair'
+            );
+            if (!conf) return false;
+            limparEstadoConta();
+        }
 
         viewAtual = novaView;
         document.querySelectorAll('.m-view').forEach(v => {
             v.classList.toggle('active', v.id === `view-${novaView}`);
         });
+
+        atualizarRodapePorView(novaView);
 
         if (registrarHistorico && novaView !== 'home') {
             window.history.pushState({ app: 'smart-cnx', view: novaView }, '');
@@ -192,6 +314,7 @@
 
         if (novaView === 'requisicoes') carregarRequisicoesMobile();
         if (window.lucide) lucide.createIcons();
+        return true;
     }
 
     async function acionarVoltar() {
@@ -205,20 +328,72 @@
             return;
         }
 
-        // 2. Se estiver no scanner da coleta, volta para seleção de modelo
+        // 2. Navegação em etapas dentro da Coleta de MAC
         if (viewAtual === 'coleta') {
             const stepAtiva = document.getElementById('coleta-step-ativa');
+            const stepSetup = document.getElementById('coleta-step-setup');
             const passoScan = document.getElementById('coleta-passo-scanner');
+
+            // 2a. Do scanner -> volta para seleção de modelo
             if (stepAtiva.style.display !== 'none' && passoScan.style.display !== 'none') {
                 mostrarPassoModelo();
                 window.history.pushState({ app: 'smart-cnx', view: 'coleta' }, '');
                 return;
             }
+
+            // 2b. Da seleção de modelo -> volta para seleção de almoxarifado
+            if (stepAtiva.style.display !== 'none') {
+                const prodPreenchido = Boolean(document.getElementById('col-produto')?.value);
+                if (loteMac.length > 0 || prodPreenchido) {
+                    const conf = await mConfirm(
+                        'Voltar para Almoxarifado',
+                        'Deseja voltar para a seleção de almoxarifado? Os dados e itens desta conferência serão descartados.',
+                        'Voltar'
+                    );
+                    if (!conf) {
+                        window.history.pushState({ app: 'smart-cnx', view: 'coleta' }, '');
+                        return;
+                    }
+                }
+                await pararScanner();
+                loteMac = [];
+                renderizarLote();
+                modeloSelecionado = null;
+                macTemp = '';
+                setPickerValue('col-produto', 'lbl-pick-col-prod', '', '', 'Toque para buscar produto...');
+                stepAtiva.style.display = 'none';
+                stepSetup.style.display = 'block';
+                window.history.pushState({ app: 'smart-cnx', view: 'coleta' }, '');
+                return;
+            }
+
+            // 2c. Da seleção de almoxarifado -> valida form sujo antes de voltar à Home
+            if (coletaTemDadosPreenchidos()) {
+                const conf = await mConfirm(
+                    'Descartar Coleta',
+                    'Existem dados preenchidos nesta coleta. Deseja sair e descartá-los?',
+                    'Sair'
+                );
+                if (!conf) {
+                    window.history.pushState({ app: 'smart-cnx', view: 'coleta' }, '');
+                    return;
+                }
+            }
+            await limparEstadoColeta();
+            viewAtual = 'home';
+            document.querySelectorAll('.m-view').forEach(v => v.classList.toggle('active', v.id === 'view-home'));
+            atualizarRodapePorView('home');
+            window.history.pushState({ app: 'smart-cnx', view: 'home', guard: true }, '');
+            return;
         }
 
-        // 3. Volta para a tela inicial
+        // 3. Outras telas (incluindo Minha Conta) -> volta para a tela inicial
         if (viewAtual !== 'home') {
-            await navegarParaView('home', false);
+            const saiu = await navegarParaView('home', false);
+            if (!saiu) {
+                window.history.pushState({ app: 'smart-cnx', view: viewAtual }, '');
+                return;
+            }
             window.history.pushState({ app: 'smart-cnx', view: 'home', guard: true }, '');
             return;
         }
@@ -1160,10 +1335,11 @@
     document.querySelectorAll('.m-toggle-pass').forEach(btn => {
         btn.addEventListener('click', () => {
             const input = document.getElementById(btn.dataset.target);
-            const isPass = input.type === 'password';
-            input.type = isPass ? 'text' : 'password';
-            btn.innerHTML = `<i data-lucide="${isPass ? 'eye' : 'eye-off'}"></i>`;
-            btn.style.color = isPass ? 'var(--cnx-orange)' : '#94a3b8';
+            if (!input) return;
+            const estavaMascarado = input.classList.toggle('m-pass-masked');
+            const visivel = !estavaMascarado;
+            btn.innerHTML = `<i data-lucide="${visivel ? 'eye' : 'eye-off'}"></i>`;
+            btn.style.color = visivel ? 'var(--cnx-orange)' : '#94a3b8';
             if (window.lucide) lucide.createIcons();
         });
     });

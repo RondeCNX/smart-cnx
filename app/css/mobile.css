@@ -801,3 +801,39 @@ body, html {
     background: var(--cnx-blue);
     border: 1px solid var(--cnx-orange);
 }
+
+/* RODAPÉ CONTRAÍDO NAS TELAS INTERNAS */
+.m-footer {
+    transition: min-height 0.2s ease, padding 0.2s ease;
+}
+.m-footer.compact {
+    min-height: 42px;
+    padding: 4px 12px calc(4px + env(safe-area-inset-bottom));
+}
+.m-footer.compact .m-footer-avatar {
+    width: 30px;
+    height: 30px;
+    top: 0;
+    border-width: 2px;
+}
+.m-footer.compact .m-footer-name {
+    font-size: 0.72rem;
+}
+.m-footer.compact .m-footer-role {
+    font-size: 0.62rem;
+}
+.m-footer.compact .m-fab-btn {
+    width: 40px;
+    height: 40px;
+    top: -6px;
+    border-width: 2px;
+}
+.m-footer.compact .m-fab-btn i {
+    width: 20px;
+    height: 20px;
+}
+
+/* MÁSCARA DE SENHA SEM USAR type="password" (EVITA POP-UP DO GOOGLE) */
+.m-pass-masked {
+    -webkit-text-security: disc;
+}
