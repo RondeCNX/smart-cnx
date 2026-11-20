@@ -508,12 +508,11 @@
         lucide.createIcons();
 
         try {
-            // Mapeia nomes limpos para enviar para o log do banco
             let permissoesParaSalvar = {};
             moduloContent.querySelectorAll('.chk-perm').forEach(chk => {
                 const mod = chk.dataset.mod;
                 const acao = chk.dataset.acao;
-                if(!permissoesParaSalvar[mod]) permissoesParaSalvar[mod] = { view: false, create: false, edit: false, delete: false };
+                if(!permissoesParaSalvar[mod]) permissoesParaSalvar[mod] = {};
                 permissoesParaSalvar[mod][acao] = chk.checked;
             });
             
@@ -575,6 +574,10 @@
             window.appAlert("Sucesso", "O utilizador foi gravado com sucesso no sistema.", "success");
             modalUsuario.style.display = 'none';
             buscarUsuariosGrid();
+
+            if (userDbId === usuarioLogadoId && typeof carregarFiltroAlmoxarifados === 'function') {
+                carregarFiltroAlmoxarifados(usuarioLogadoId);
+            }
             
         } catch (err) {
             console.error("Falha ao salvar:", err);
@@ -632,35 +635,81 @@
         containerPermissoes.style.display = 'block'; 
         avisoPermissoes.style.display = 'none';
         
-        const modulos = ['produtos', 'almoxarifados', 'usuarios', 'movimentacoes'];
-        const perms = cargo.permissoes || {};
+        const estrutura = typeof menuEstrutura !== 'undefined' ? menuEstrutura : {};
+        const perms = cargo?.permissoes || {};
         
         const cbClass = apenasLeitura ? 'table-checkbox-readonly' : 'chk-perm table-checkbox';
         const cbAllClass = apenasLeitura ? 'table-checkbox-readonly' : 'chk-perm-all table-checkbox';
         const cbDisabledAttr = apenasLeitura ? 'disabled' : '';
 
-        tbodyPermissoes.innerHTML = modulos.map(mod => {
-            const p = perms[mod] || { view: false, create: false, edit: false, delete: false };
-            const todos = p.view && p.create && p.edit && p.delete;
-            
-            return `
-                <tr style="border-bottom: 1px solid #f1f5f9; background: white;">
-                    <td style="padding: 0.8rem 1rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">${mod}</td>
-                    <td style="text-align: center;"><input type="checkbox" class="${cbClass}" data-cargo="${cargoId}" data-mod="${mod}" data-acao="view" ${p.view ? 'checked' : ''} ${cbDisabledAttr}></td>
-                    <td style="text-align: center;"><input type="checkbox" class="${cbClass}" data-cargo="${cargoId}" data-mod="${mod}" data-acao="create" ${p.create ? 'checked' : ''} ${cbDisabledAttr}></td>
-                    <td style="text-align: center;"><input type="checkbox" class="${cbClass}" data-cargo="${cargoId}" data-mod="${mod}" data-acao="edit" ${p.edit ? 'checked' : ''} ${cbDisabledAttr}></td>
-                    <td style="text-align: center;"><input type="checkbox" class="${cbClass}" data-cargo="${cargoId}" data-mod="${mod}" data-acao="delete" ${p.delete ? 'checked' : ''} ${cbDisabledAttr}></td>
-                    <td style="text-align: center; background: #f8fafc;"><input type="checkbox" class="${cbAllClass}" data-cargo="${cargoId}" data-mod="${mod}" ${todos ? 'checked' : ''} ${cbDisabledAttr}></td>
+        let html = '';
+
+        for (const [nomeMenu, telas] of Object.entries(estrutura)) {
+            html += `
+                <tr style="background: #f1f5f9; border-bottom: 1px solid #cbd5e1;">
+                    <td colspan="3" style="padding: 0.5rem 1rem; font-size: 0.7rem; font-weight: 800; color: var(--cnx-orange); text-transform: uppercase; letter-spacing: 0.5px;">
+                        ${nomeMenu}
+                    </td>
                 </tr>
             `;
-        }).join('');
+
+            telas.forEach(tela => {
+                const acoes = tela.acoes || [
+                    { key: 'view', label: 'Visualizar' },
+                    { key: 'create', label: 'Criar' },
+                    { key: 'edit', label: 'Editar' },
+                    { key: 'delete', label: 'Inativar' }
+                ];
+
+                const pTela = perms[tela.id] || {};
+                const todosMarcados = acoes.length > 0 && acoes.every(a => !!pTela[a.key]);
+
+                const acoesHtml = acoes.map(a => `
+                    <label style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.72rem; font-weight: 600; color: #334155; cursor: ${apenasLeitura ? 'not-allowed' : 'pointer'};">
+                        <input type="checkbox" class="${cbClass}" data-cargo="${cargoId}" data-mod="${tela.id}" data-acao="${a.key}" ${pTela[a.key] ? 'checked' : ''} ${cbDisabledAttr}>
+                        <span>${a.label}</span>
+                    </label>
+                `).join('');
+
+                html += `
+                    <tr style="border-bottom: 1px solid #f1f5f9; background: white;">
+                        <td style="padding: 0.7rem 1rem; font-weight: 700; color: var(--cnx-blue); font-size: 0.78rem;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <i data-lucide="${tela.icone || 'square'}" style="width: 14px; height: 14px; color: #64748b;"></i>
+                                <span>${tela.nome}</span>
+                            </div>
+                        </td>
+                        <td style="padding: 0.6rem 1rem;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                ${acoesHtml}
+                            </div>
+                        </td>
+                        <td style="text-align: center; background: #f8fafc;">
+                            <input type="checkbox" class="${cbAllClass}" data-cargo="${cargoId}" data-mod="${tela.id}" ${todosMarcados ? 'checked' : ''} ${cbDisabledAttr}>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        tbodyPermissoes.innerHTML = html;
+        lucide.createIcons();
 
         if (!apenasLeitura) {
-            moduloContent.querySelectorAll('.chk-perm-all').forEach(chk => { 
-                chk.addEventListener('change', (e) => { 
-                    const el = e.target; const marcar = el.checked; 
-                    el.closest('tr').querySelectorAll('.chk-perm').forEach(c => c.checked = marcar); 
-                }); 
+            moduloContent.querySelectorAll('.chk-perm-all').forEach(chk => {
+                chk.addEventListener('change', (e) => {
+                    const marcar = e.target.checked;
+                    e.target.closest('tr').querySelectorAll('.chk-perm').forEach(c => c.checked = marcar);
+                });
+            });
+
+            moduloContent.querySelectorAll('.chk-perm').forEach(chk => {
+                chk.addEventListener('change', (e) => {
+                    const tr = e.target.closest('tr');
+                    const todos = Array.from(tr.querySelectorAll('.chk-perm'));
+                    const chkAll = tr.querySelector('.chk-perm-all');
+                    if (chkAll) chkAll.checked = todos.length > 0 && todos.every(c => c.checked);
+                });
             });
         }
     }

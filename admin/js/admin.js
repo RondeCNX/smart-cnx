@@ -13,8 +13,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 function toggleDropdown(id) {
     document.querySelectorAll('.dropdown-menu').forEach(el => { if (el.id !== id) el.classList.remove('show'); });
     const menu = document.getElementById(id);
-    if (menu) menu.classList.toggle('show');
+    if (menu) {
+        menu.classList.toggle('show');
+        if (menu.classList.contains('show') && menu.closest('.top-header')) {
+            menu.style.left = '';
+            menu.style.right = '';
+            const rect = menu.getBoundingClientRect();
+            if (rect.right > window.innerWidth - 10) {
+                menu.style.left = 'auto';
+                menu.style.right = '0';
+            }
+        }
+    }
 }
+
 document.addEventListener('click', (e) => {
     if (!e.target.closest('.has-dropdown')) document.querySelectorAll('.dropdown-menu').forEach(el => el.classList.remove('show'));
 });
@@ -30,6 +42,8 @@ async function carregarPerfilRodape(userId) {
     } catch (err) {}
 }
 
+window.almoxarifadosSelecionados = [];
+
 async function carregarFiltroAlmoxarifados(userId) {
     const btnFiltro = document.getElementById('btn-filtro-almox');
     const lblFiltro = document.getElementById('label-filtro-almox');
@@ -40,21 +54,26 @@ async function carregarFiltroAlmoxarifados(userId) {
         const [resUser, resVincs, resAlmox] = await Promise.all([
             window.db.from('usuarios').select('acesso_todos_almoxarifados, cargos(nome)').eq('id', userId).maybeSingle(),
             window.db.from('usuario_almoxarifados').select('almoxarifado_id').eq('usuario_id', userId),
-            window.db.from('almoxarifados').select('id, codigo, descricao').eq('status', 'ATIVO').order('codigo')
+            window.db.from('almoxarifados').select('id, codigo, descricao').eq('status', 'ATIVO')
         ]);
+
+        if (resAlmox.error) throw resAlmox.error;
 
         const cargoNome = resUser.data?.cargos?.nome?.toUpperCase() || '';
         const acessoTodos = cargoNome === 'ADMINISTRADOR' || !!resUser.data?.acesso_todos_almoxarifados;
-        const idsVinculados = (resVincs.data || []).map(v => v.almoxarifado_id);
-        const todosAtivos = resAlmox.data || [];
+        const idsVinculados = (resVincs.data || []).map(v => String(v.almoxarifado_id));
+        const todosAtivos = (resAlmox.data || []).sort((a, b) =>
+            (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR', { sensitivity: 'base' })
+        );
 
         const almoxPermitidos = acessoTodos
             ? todosAtivos
-            : todosAtivos.filter(a => idsVinculados.includes(a.id));
+            : todosAtivos.filter(a => idsVinculados.includes(String(a.id)));
 
         // Caso 0: Nenhum almoxarifado vinculado
         if (almoxPermitidos.length === 0) {
             lblFiltro.innerText = 'Nenhum almoxarifado vinculado';
+            window.almoxarifadosSelecionados = [];
             if (btnFiltro) {
                 btnFiltro.onclick = null;
                 btnFiltro.style.cursor = 'default';
@@ -67,11 +86,11 @@ async function carregarFiltroAlmoxarifados(userId) {
         if (almoxPermitidos.length === 1) {
             const unico = almoxPermitidos[0];
             lblFiltro.innerText = `${unico.codigo} - ${unico.descricao}`;
+            window.almoxarifadosSelecionados = [unico.id];
             if (btnFiltro) {
                 btnFiltro.onclick = null;
                 btnFiltro.style.cursor = 'default';
             }
-            // Mantém o input marcado oculto para compatibilidade com módulos que leem .chk-almox-item:checked
             listaEl.innerHTML = `<input type="checkbox" class="chk-almox-item" value="${unico.id}" checked style="display:none;">`;
             return;
         }
@@ -83,14 +102,14 @@ async function carregarFiltroAlmoxarifados(userId) {
         }
 
         listaEl.innerHTML = almoxPermitidos.map(almox => `
-            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; margin: 0; cursor: pointer; font-size: 0.75rem; color: #334155; transition: background 0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
-                <input type="checkbox" class="chk-almox-item" value="${almox.id}" checked onchange="atualizarLabelFiltro()" style="cursor: pointer; flex-shrink: 0;">
-                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${almox.codigo} - ${almox.descricao}">${almox.codigo} - ${almox.descricao}</span>
+            <label style="position: static; display: flex; align-items: center; gap: 8px; padding: 6px 8px; min-height: 28px; border-radius: 4px; margin: 0; cursor: pointer; font-size: 0.75rem; color: #334155; box-sizing: border-box; width: 100%;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+                <input type="checkbox" class="chk-almox-item" value="${almox.id}" checked onchange="atualizarLabelFiltro()" style="cursor: pointer; flex-shrink: 0; margin: 0;">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; text-align: left;" title="${almox.codigo} - ${almox.descricao}">${almox.codigo} - ${almox.descricao}</span>
             </label>
         `).join('');
 
         if (chkTodos) chkTodos.checked = true;
-        lblFiltro.innerText = 'Todos os Almoxarifados';
+        atualizarLabelFiltro();
     } catch (err) {
         console.error('Erro ao carregar filtro de almoxarifados:', err);
         if (lblFiltro) lblFiltro.innerText = 'Erro ao carregar';
@@ -111,6 +130,8 @@ function atualizarLabelFiltro() {
     const chkTodos = document.getElementById('chk-todos-almox');
     const lblFiltro = document.getElementById('label-filtro-almox');
 
+    window.almoxarifadosSelecionados = marcados.map(i => i.value);
+
     if (chkTodos) {
         chkTodos.checked = itens.length > 0 && marcados.length === itens.length;
     }
@@ -125,9 +146,24 @@ function atualizarLabelFiltro() {
     } else {
         lblFiltro.innerText = `${marcados.length} almoxarifado(s)`;
     }
+
+    document.dispatchEvent(new CustomEvent('filtroAlmoxarifadosAlterado', {
+        detail: { selecionados: window.almoxarifadosSelecionados }
+    }));
 }
 
-async function fazerLogout() { await window.db.auth.signOut(); window.location.replace('../index.html'); }
+async function fazerLogout() {
+    const conf = await window.appConfirm(
+        'Sair do Sistema',
+        'Tem certeza que deseja encerrar a sua sessão?',
+        'warning',
+        'Sim, sair',
+        'Cancelar'
+    );
+    if (!conf) return;
+    await window.db.auth.signOut();
+    window.location.replace('../index.html');
+}
 
 // ================= UTILITÁRIO GLOBAL: POP-UPS E CONFIRMAÇÕES =================
 let alertTimeout = null;
@@ -374,7 +410,7 @@ function formatarDadosLog(antigos, novos, tabelaOrigem = null) {
     }
 
     const rotulosAmigaveis = {
-        'codigo': 'Código Interno', 'descricao': 'Descrição', 'status': 'Status',
+        'codigo': 'Código Interno', 'descricao': 'Descrição', 'status': 'Status', 'nome': 'Nome',
         'almoxarifado_abastecedor_id': 'Abastecedor (Origem)', 'almoxarifado_requisitante_id': 'Solicitante (Destino)',
         'usuario_atendente_id': 'Atendente', 'usuario_solicitante_id': 'Solicitante',
         'observacoes_solicitacao': 'Obs. Solicitação', 'dados_envio': 'Dados Envio', 'numero_pedido': 'Pedido ERP',
@@ -386,12 +422,86 @@ function formatarDadosLog(antigos, novos, tabelaOrigem = null) {
         'arquivo_assinatura': 'Documento de Assinatura (Ficha)',
         'produto_patrimonio_erp': 'Novo Patrimônio ERP',
         'mac': 'MAC (Gpon)',
-        'numero_serie': 'Nº de Série'
+        'numero_serie': 'Nº de Série',
+        'nome_completo': 'Nome Completo',
+        'ativo': 'Ativo',
+        'acesso_todos_almoxarifados': 'Acesso a Todos os Almoxarifados',
+        'historico_acessos': 'Acessos e Permissões',
+        'permissoes': 'Permissões do Cargo'
+    };
+
+    const mapaTelas = {};
+    const mapaAcoes = {};
+    if (typeof menuEstrutura !== 'undefined') {
+        Object.values(menuEstrutura).forEach(telas => {
+            telas.forEach(t => {
+                mapaTelas[t.id] = t.nome;
+                mapaAcoes[t.id] = {};
+                (t.acoes || []).forEach(a => { mapaAcoes[t.id][a.key] = a.label; });
+            });
+        });
+    }
+
+    const traduzirAcao = (mod, acao) => {
+        if (mapaAcoes[mod] && mapaAcoes[mod][acao]) return mapaAcoes[mod][acao];
+        const padrao = { view: 'Visualizar', create: 'Criar', edit: 'Editar', delete: 'Inativar/Excluir', approve: 'Aprovar/Reprovar', dispatch: 'Despachar', receive: 'Receber', return: 'Devolver', export: 'Exportar' };
+        return padrao[acao] || acao.toUpperCase();
+    };
+
+    const parseJsonSeguro = (val) => {
+        if (!val) return {};
+        if (typeof val === 'object') return val;
+        try { return JSON.parse(val); } catch { return {}; }
+    };
+
+    const renderBlocoDiff = (titulo, htmlAntigo, htmlNovo) => `
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden; margin-bottom: 4px;">
+            <div style="background: #f8fafc; padding: 4px 8px; font-size: 0.6rem; font-weight: 800; color: var(--cnx-blue); border-bottom: 1px solid #e2e8f0; text-transform: uppercase;">Modificação em: ${titulo}</div>
+            <div style="display: flex; flex-direction: row; width: 100%;">
+                <div style="flex: 1; padding: 6px 8px; background: #fef2f2; color: #991b1b; border-right: 1px solid #e2e8f0; font-family: inherit; font-size: 0.7rem; text-align: left;">
+                    <div style="text-decoration: line-through; opacity: 0.7; margin-bottom: 4px; font-size: 0.6rem; font-weight: 700;">ANTERIOR:</div>${htmlAntigo}
+                </div>
+                <div style="flex: 1; padding: 6px 8px; background: #ecfdf5; color: #065f46; font-family: inherit; font-size: 0.7rem; text-align: left;">
+                    <div style="margin-bottom: 4px; font-size: 0.6rem; font-weight: 700;">NOVO:</div>${htmlNovo}
+                </div>
+            </div>
+        </div>`;
+
+    const renderDiffMatrizPermissoes = (antPerms, novPerms) => {
+        let out = '';
+        const todosMods = [...new Set([...Object.keys(antPerms || {}), ...Object.keys(novPerms || {})])]
+            .filter(mod => Object.keys(mapaTelas).length === 0 || !!mapaTelas[mod]);
+
+        todosMods.forEach(mod => {
+            const pAnt = (antPerms && antPerms[mod]) || {};
+            const pNov = (novPerms && novPerms[mod]) || {};
+            const todasAcoes = [...new Set([...Object.keys(pAnt), ...Object.keys(pNov)])];
+
+            let linhasAnt = [];
+            let linhasNov = [];
+
+            todasAcoes.forEach(acao => {
+                const vAnt = !!pAnt[acao];
+                const vNov = !!pNov[acao];
+                if (vAnt !== vNov) {
+                    const nomeAcao = traduzirAcao(mod, acao);
+                    linhasAnt.push(`<div><strong>${nomeAcao}:</strong> ${vAnt ? 'SIM' : 'NÃO'}</div>`);
+                    linhasNov.push(`<div><strong>${nomeAcao}:</strong> ${vNov ? 'SIM' : 'NÃO'}</div>`);
+                }
+            });
+
+            if (linhasAnt.length > 0) {
+                const nomeTela = mapaTelas[mod] || mod.toUpperCase();
+                out += renderBlocoDiff(`Permissões — ${nomeTela}`, linhasAnt.join(''), linhasNov.join(''));
+            }
+        });
+        return out;
     };
 
     const formatarValorAmigavel = (chave, valor) => {
         if (valor === null || valor === '' || valor === undefined || valor === 'NULO') return '<span style="color: #94a3b8; font-style: italic;">Nenhum</span>';
         if (typeof valor === 'boolean') return valor ? 'SIM' : 'NÃO';
+        if (typeof valor === 'object') return JSON.stringify(valor);
         
         const chaveLower = String(chave || '').toLowerCase();
         
@@ -414,16 +524,12 @@ function formatarDadosLog(antigos, novos, tabelaOrigem = null) {
     };
 
     const renderObjectDiff = (objAntigo, objNovo, chavePai = null) => {
-        let vAntigo = objAntigo; let vNovo = objNovo;
-        if (chavePai) {
-            vAntigo = formatarValorAmigavel(chavePai, objAntigo);
-            vNovo = formatarValorAmigavel(chavePai, objNovo);
-        } else {
-            vAntigo = objAntigo === null || objAntigo === '' ? 'Nenhum' : String(objAntigo);
-            vNovo = objNovo === null || objNovo === '' ? 'Nenhum' : String(objNovo);
-        }
+        const sAnt = (typeof objAntigo === 'object' && objAntigo !== null) ? JSON.stringify(objAntigo) : String(objAntigo ?? '');
+        const sNov = (typeof objNovo === 'object' && objNovo !== null) ? JSON.stringify(objNovo) : String(objNovo ?? '');
 
-        if (String(objAntigo) !== String(objNovo)) {
+        if (sAnt !== sNov) {
+            let vAntigo = chavePai ? formatarValorAmigavel(chavePai, objAntigo) : (objAntigo || 'Nenhum');
+            let vNovo = chavePai ? formatarValorAmigavel(chavePai, objNovo) : (objNovo || 'Nenhum');
             if (typeof vAntigo === 'string') vAntigo = vAntigo.replace(/\n/g, '<br>');
             if (typeof vNovo === 'string') vNovo = vNovo.replace(/\n/g, '<br>');
             return { antigo: `<div style="margin-bottom: 2px;">${vAntigo}</div>`, novo: `<div style="margin-bottom: 2px;">${vNovo}</div>`, hasDiff: true };
@@ -447,32 +553,44 @@ function formatarDadosLog(antigos, novos, tabelaOrigem = null) {
         let temAlteracao = false;
         let blocosDiff = '';
         for (const key in novos) {
-            if (chavesIgnoradas.includes(key.toLowerCase())) continue;
+            const labelKey = key.toLowerCase();
+            if (chavesIgnoradas.includes(labelKey)) continue;
+
+            if (labelKey === 'historico_acessos') {
+                const antAcc = parseJsonSeguro(antigos[key]);
+                const novAcc = parseJsonSeguro(novos[key]);
+
+                if (String(antAcc.Cargo || '') !== String(novAcc.Cargo || '')) {
+                    temAlteracao = true;
+                    blocosDiff += renderBlocoDiff('Cargo', `<div>${antAcc.Cargo || 'Nenhum'}</div>`, `<div>${novAcc.Cargo || 'Nenhum'}</div>`);
+                }
+                if (String(antAcc.Almoxarifados || '') !== String(novAcc.Almoxarifados || '')) {
+                    temAlteracao = true;
+                    blocosDiff += renderBlocoDiff('Almoxarifados Vinculados', `<div>${antAcc.Almoxarifados || 'Nenhum'}</div>`, `<div>${novAcc.Almoxarifados || 'Nenhum'}</div>`);
+                }
+                const diffPerms = renderDiffMatrizPermissoes(antAcc.Permissoes, novAcc.Permissoes);
+                if (diffPerms) { temAlteracao = true; blocosDiff += diffPerms; }
+                continue;
+            }
+
+            if (labelKey === 'permissoes') {
+                const diffPerms = renderDiffMatrizPermissoes(parseJsonSeguro(antigos[key]), parseJsonSeguro(novos[key]));
+                if (diffPerms) { temAlteracao = true; blocosDiff += diffPerms; }
+                continue;
+            }
+
             const diffResult = renderObjectDiff(antigos[key], novos[key], key);
             if (diffResult.hasDiff) {
                 temAlteracao = true;
-                const labelKey = key.toLowerCase();
                 let keyLabel = rotulosAmigaveis[labelKey] || key.replace(/_/g, ' ');
-                
-                blocosDiff += `
-                    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden; margin-bottom: 4px;">
-                        <div style="background: #f8fafc; padding: 4px 8px; font-size: 0.6rem; font-weight: 800; color: var(--cnx-blue); border-bottom: 1px solid #e2e8f0; text-transform: uppercase;">Modificação em: ${keyLabel}</div>
-                        <div style="display: flex; flex-direction: row; width: 100%;">
-                            <div style="flex: 1; padding: 6px 8px; background: #fef2f2; color: #991b1b; border-right: 1px solid #e2e8f0; font-family: inherit; font-size: 0.7rem; text-align: left;">
-                                <div style="text-decoration: line-through; opacity: 0.7; margin-bottom: 4px; font-size: 0.6rem; font-weight: 700;">ANTERIOR:</div>${diffResult.antigo}
-                            </div>
-                            <div style="flex: 1; padding: 6px 8px; background: #ecfdf5; color: #065f46; font-family: inherit; font-size: 0.7rem; text-align: left;">
-                                <div style="margin-bottom: 4px; font-size: 0.6rem; font-weight: 700;">NOVO:</div>${diffResult.novo}
-                            </div>
-                        </div>
-                    </div>`;
+                blocosDiff += renderBlocoDiff(keyLabel, diffResult.antigo, diffResult.novo);
             }
         }
         if (!temAlteracao) return ''; 
         if (produtoDoContexto) html += `<div style="font-size: 0.75rem; font-weight: 800; color: var(--cnx-orange); margin-bottom: 4px;">${produtoDoContexto}</div>`;
         html += blocosDiff;
 
-    } else if (antigos && !novos) { // DELETE / EXCLUSÃO
+    } else if (antigos && !novos) { // DELETE
         if (produtoDoContexto) html += `<div style="font-size: 0.75rem; font-weight: 800; color: #ef4444; margin-bottom: 6px; text-decoration: line-through;">${produtoDoContexto}</div>`;
         html += `<div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; padding: 8px; color: #991b1b; font-size: 0.7rem; text-align: left;">`;
         html += `<div style="font-weight: 800; margin-bottom: 4px; text-transform: uppercase; border-bottom: 1px solid #fecaca; padding-bottom: 4px;">Dados do Item Removido:</div>`;
@@ -598,20 +716,151 @@ let idAtual = null;
 const sidebarPanel = document.getElementById('sidebar-panel');
 const menuEstrutura = {
     'Cadastros': [
-        {id: 'produtos', nome: 'Produtos', icone: 'box'},
-        {id: 'almoxarifados', nome: 'Almoxarifados', icone: 'warehouse'},
-        {id: 'usuarios', nome: 'Usuários', icone: 'users'}
+        {
+            id: 'produtos', nome: 'Produtos', icone: 'box',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'create', label: 'Criar' },
+                { key: 'edit', label: 'Editar' },
+                { key: 'delete', label: 'Inativar' }
+            ]
+        },
+        {
+            id: 'almoxarifados', nome: 'Almoxarifados', icone: 'warehouse',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'create', label: 'Criar' },
+                { key: 'edit', label: 'Editar' },
+                { key: 'delete', label: 'Inativar' }
+            ]
+        },
+        {
+            id: 'usuarios', nome: 'Usuários', icone: 'users',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'create', label: 'Criar' },
+                { key: 'edit', label: 'Editar' },
+                { key: 'delete', label: 'Inativar' }
+            ]
+        }
     ],
     'Movimentações': [
-        {id: 'requisicoes', nome: 'Requisição e Envio', icone: 'truck'},
-        {id: 'emprestimos', nome: 'Empréstimos', icone: 'wrench'},
-        {id: 'coleta_mac', nome: 'Coleta de MAC', icone: 'cpu'},
-        {id: 'ajuste_estoque', nome: 'Ajuste de Estoque', icone: 'layers'}
+        {
+            id: 'requisicoes', nome: 'Requisição e Envio', icone: 'truck',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'create', label: 'Criar' },
+                { key: 'edit', label: 'Editar' },
+                { key: 'delete', label: 'Excluir' },
+                { key: 'approve', label: 'Aprovar/Reprovar' },
+                { key: 'dispatch', label: 'Despachar' },
+                { key: 'receive', label: 'Receber' }
+            ]
+        },
+        {
+            id: 'emprestimos', nome: 'Empréstimos', icone: 'wrench',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'create', label: 'Criar' },
+                { key: 'edit', label: 'Editar' },
+                { key: 'return', label: 'Devolver' },
+                { key: 'delete', label: 'Cancelar' }
+            ]
+        },
+        {
+            id: 'coleta_mac', nome: 'Coleta de MAC', icone: 'cpu',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'create', label: 'Coletar' },
+                { key: 'edit', label: 'Editar' },
+                { key: 'delete', label: 'Excluir' }
+            ]
+        },
+        {
+            id: 'ajuste_estoque', nome: 'Ajuste de Estoque', icone: 'layers',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'create', label: 'Criar' },
+                { key: 'edit', label: 'Editar' },
+                { key: 'delete', label: 'Cancelar/Excluir' }
+            ]
+        }
     ],
     'Relatórios': [
-        {id: 'rel_requisicoes', nome: 'Rel. Requisições', icone: 'file-spreadsheet'},
-        {id: 'rel_emprestimos', nome: 'Rel. Empréstimos', icone: 'clipboard-list'},
-        {id: 'rel_ajustes_mac', nome: 'Rel. Ajustes de MAC', icone: 'cpu'}
+        {
+            id: 'rel_requisicoes', nome: 'Rel. Requisições', icone: 'file-spreadsheet',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'export', label: 'Exportar (PDF/CSV)' }
+            ]
+        },
+        {
+            id: 'rel_emprestimos', nome: 'Rel. Empréstimos', icone: 'clipboard-list',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'export', label: 'Exportar (PDF/CSV)' }
+            ]
+        },
+        {
+            id: 'rel_ajustes_mac', nome: 'Rel. Ajustes de MAC', icone: 'cpu',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'export', label: 'Exportar (PDF/CSV)' }
+            ]
+        }
+    ],
+    'Configurações': [
+        {
+            id: 'cfg_conta', nome: 'Minha Conta', icone: 'user-cog',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'edit', label: 'Alterar Foto/Senha' }
+            ]
+        },
+        {
+            id: 'cfg_regras', nome: 'Regras de Operação', icone: 'sliders',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'edit', label: 'Alterar' }
+            ]
+        },
+        {
+            id: 'cfg_buckets', nome: 'Retenção de Buckets', icone: 'hard-drive',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'edit', label: 'Alterar Prazo' },
+                { key: 'delete', label: 'Executar Limpeza' }
+            ]
+        },
+        {
+            id: 'cfg_cargos', nome: 'Gestão de Cargos', icone: 'shield',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'create', label: 'Criar' },
+                { key: 'edit', label: 'Editar' },
+                { key: 'delete', label: 'Excluir' }
+            ]
+        },
+        {
+            id: 'cfg_auditoria', nome: 'Auditoria', icone: 'activity',
+            acoes: [
+                { key: 'view', label: 'Visualizar' },
+                { key: 'export', label: 'Exportar (PDF/CSV)' }
+            ]
+        },
+        {
+            id: 'cfg_backup', nome: 'Backup e Importação', icone: 'database-backup',
+            acoes: [
+                { key: 'view', label: 'Exportar Tabelas' },
+                { key: 'create', label: 'Importar Dados' }
+            ]
+        },
+        {
+            id: 'cfg_sobre', nome: 'Sobre (Link)', icone: 'info',
+            acoes: [
+                { key: 'edit', label: 'Alterar Link' }
+            ]
+        }
     ]
 };
 

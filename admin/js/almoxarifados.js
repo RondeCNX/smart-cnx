@@ -96,11 +96,15 @@
     function popularSelectAbastecedores(excluirId = null) {
         if (!inAbastecedor) return;
         let html = '<option value="">Nenhum (Centro Principal / Sem Abastecedor Direto)</option>';
-        almoxarifadosRaw.forEach(a => {
-            if (a.id !== excluirId) {
-                html += `<option value="${a.id}">${a.codigo} - ${a.descricao}</option>`;
-            }
+
+        const ordenados = [...almoxarifadosRaw]
+            .filter(a => a.id !== excluirId)
+            .sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR', { sensitivity: 'base' }));
+
+        ordenados.forEach(a => {
+            html += `<option value="${a.id}">${a.codigo} - ${a.descricao}</option>`;
         });
+
         inAbastecedor.innerHTML = html;
     }
 
@@ -285,7 +289,15 @@
                 ? `<span style="background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 800;">ATIVO</span>`
                 : `<span style="background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 800;">INATIVO</span>`;
             
-            let tipoBadge = `<span style="background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 800;">${a.tipo || 'TÉCNICO'}</span>`;
+            const tipoUpper = (a.tipo || '').toUpperCase();
+            let tipoBadge = `<span style="background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 800;">NÃO DEFINIDO</span>`;
+            if (tipoUpper === 'TÉCNICO') {
+                tipoBadge = `<span style="background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 800;">TÉCNICO</span>`;
+            } else if (tipoUpper === 'LOJA') {
+                tipoBadge = `<span style="background: #ffedd5; color: #c2410c; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 800;">LOJA</span>`;
+            } else if (tipoUpper === 'ESTOQUE') {
+                tipoBadge = `<span style="background: #ede9fe; color: #6d28d9; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 800;">ESTOQUE</span>`;
+            }
 
             let botoesAcao = `<button class="btn-ver" data-id="${a.id}" title="Visualizar" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="eye" style="width: 14px;"></i></button>`;
             

@@ -559,20 +559,47 @@
         }
     });
 
-    // Validacao Form Sujo ao Teclar Esc - Capturing Phase Global
+    // Validação de fechamento por ESC respeitando a hierarquia de modais
     window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            const customPrompt = document.getElementById('custom-prompt-modal');
-            const mainModal = document.getElementById('modal-req');
-            
-            if (customPrompt && customPrompt.style.display !== 'none') {
-                return; // O prompt cancela-se a si próprio
-            }
-            if (mainModal && mainModal.style.display !== 'none') {
-                e.preventDefault();
-                e.stopPropagation();
-                fecharModalRequisicao();
-            }
+        if (e.key !== 'Escape') return;
+
+        // 1. Prompt customizado (trata o próprio ESC)
+        const customPrompt = document.getElementById('custom-prompt-modal');
+        if (customPrompt && customPrompt.style.display !== 'none') {
+            return;
+        }
+
+        // 2. Visualizador de PDF
+        const pdfModal = document.getElementById('pdf-frame-modal');
+        if (pdfModal && pdfModal.style.display !== 'none') {
+            e.preventDefault();
+            e.stopPropagation();
+            pdfModal.style.display = 'none';
+            return;
+        }
+
+        // 3. Modal de anexo / impressão
+        const anexoModal = document.getElementById('modal-anexo-req');
+        if (anexoModal && anexoModal.style.display !== 'none') {
+            e.preventDefault();
+            e.stopPropagation();
+            anexoModal.style.display = 'none';
+            return;
+        }
+
+        // 4. Modal de consulta (Lupa: Almoxarifado ou Produto)
+        if (modalConsulta && modalConsulta.style.display !== 'none') {
+            e.preventDefault();
+            e.stopPropagation();
+            modalConsulta.style.display = 'none';
+            return;
+        }
+
+        // 5. Modal principal da Requisição
+        if (modalReq && modalReq.style.display !== 'none') {
+            e.preventDefault();
+            e.stopPropagation();
+            fecharModalRequisicao();
         }
     }, true);
 
@@ -612,6 +639,8 @@
             else lista = almoxarifados.filter(a => meusAlmoxarifadosIds.includes(a.id));
 
             if (termo) lista = lista.filter(a => a.codigo.includes(termo) || a.descricao.includes(termo));
+
+            lista.sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR', { sensitivity: 'base' }));
             
             if (lista.length === 0) html = `<tr><td colspan="3" style="text-align:center; padding:2rem; color:#64748b;">Nenhum almoxarifado disponível.</td></tr>`;
             else {
@@ -626,6 +655,8 @@
         } else {
             let lista = produtos;
             if (termo) lista = lista.filter(p => p.codigo.includes(termo) || p.descricao.includes(termo));
+
+            lista.sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR', { sensitivity: 'base' }));
             
             if (lista.length === 0) html = `<tr><td colspan="3" style="text-align:center; padding:2rem; color:#64748b;">Nenhum produto encontrado.</td></tr>`;
             else {

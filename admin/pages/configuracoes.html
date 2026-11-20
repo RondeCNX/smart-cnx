@@ -1,0 +1,453 @@
+<!-- admin/pages/configuracoes.html -->
+<div class="modulo-container" id="modulo-configuracoes">
+    <div class="modulo-header">
+        <div>
+            <h2>Configurações do Sistema</h2>
+            <p>GERENCIE SUA CONTA, REGRAS, CARGOS, RETENÇÃO DE ARQUIVOS, AUDITORIA E BACKUP</p>
+        </div>
+    </div>
+
+    <!-- Navegação por Abas -->
+    <div style="display: flex; gap: 4px; border-bottom: 2px solid #e2e8f0; margin-bottom: 1rem; overflow-x: auto; flex-shrink: 0;">
+        <button class="cfg-tab-btn active" data-target="cfg-tab-conta" style="background: none; border: none; border-bottom: 3px solid var(--cnx-orange); padding: 0.7rem 1rem; font-weight: 800; font-size: 0.78rem; color: var(--cnx-blue); cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+            <i data-lucide="user-cog" style="width: 15px;"></i> Minha Conta
+        </button>
+        <button class="cfg-tab-btn cfg-admin-only" data-target="cfg-tab-regras" style="background: none; border: none; border-bottom: 3px solid transparent; padding: 0.7rem 1rem; font-weight: 700; font-size: 0.78rem; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+            <i data-lucide="sliders" style="width: 15px;"></i> Regras
+        </button>
+        <button class="cfg-tab-btn cfg-admin-only" data-target="cfg-tab-buckets" style="background: none; border: none; border-bottom: 3px solid transparent; padding: 0.7rem 1rem; font-weight: 700; font-size: 0.78rem; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+            <i data-lucide="hard-drive" style="width: 15px;"></i> Buckets
+        </button>
+        <button class="cfg-tab-btn cfg-admin-only" data-target="cfg-tab-cargos" style="background: none; border: none; border-bottom: 3px solid transparent; padding: 0.7rem 1rem; font-weight: 700; font-size: 0.78rem; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+            <i data-lucide="shield" style="width: 15px;"></i> Cargos
+        </button>
+        <button class="cfg-tab-btn cfg-gestor-only" data-target="cfg-tab-auditoria" style="background: none; border: none; border-bottom: 3px solid transparent; padding: 0.7rem 1rem; font-weight: 700; font-size: 0.78rem; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+            <i data-lucide="activity" style="width: 15px;"></i> Auditoria
+        </button>
+        <button class="cfg-tab-btn cfg-admin-only" data-target="cfg-tab-backup" style="background: none; border: none; border-bottom: 3px solid transparent; padding: 0.7rem 1rem; font-weight: 700; font-size: 0.78rem; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+            <i data-lucide="database-backup" style="width: 15px;"></i> Backup
+        </button>
+        <button class="cfg-tab-btn" data-target="cfg-tab-sobre" style="background: none; border: none; border-bottom: 3px solid transparent; padding: 0.7rem 1rem; font-weight: 700; font-size: 0.78rem; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+            <i data-lucide="info" style="width: 15px;"></i> Sobre
+        </button>
+    </div>
+
+    <!-- Container com Rolagem -->
+    <div id="cfg-tabs-wrapper" style="flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px;">
+
+        <!-- ABA 1: MINHA CONTA -->
+        <div class="cfg-tab-content" id="cfg-tab-conta" style="display: block;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+                <!-- Avatar -->
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem;">
+                    <h3 style="margin: 0 0 1rem 0; font-size: 0.85rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; display: flex; align-items: center; gap: 8px;">
+                        <i data-lucide="image" style="color: var(--cnx-orange); width: 18px;"></i> Foto de Perfil (Avatar)
+                    </h3>
+                    <div style="display: flex; align-items: center; gap: 1.25rem;">
+                        <div id="cfg-avatar-preview" style="width: 76px; height: 76px; border-radius: 50%; background: #f1f5f9; border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;">
+                            <i data-lucide="user" style="width: 34px; height: 34px; color: #94a3b8;"></i>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 6px;">
+                            <strong id="cfg-conta-nome" style="color: var(--cnx-blue); font-size: 0.9rem;">-</strong>
+                            <span id="cfg-conta-email" style="color: #64748b; font-size: 0.78rem;">-</span>
+                            <input type="file" id="cfg-input-avatar" accept="image/*" style="display: none;">
+                            <button id="btn-cfg-upload-avatar" style="margin-top: 4px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 0.45rem 0.9rem; border-radius: 6px; font-weight: 700; font-size: 0.75rem; color: var(--cnx-blue); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; width: fit-content;">
+                                <i data-lucide="upload" style="width: 14px; color: var(--cnx-orange);"></i> Alterar Foto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alterar Senha -->
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem;">
+                    <h3 style="margin: 0 0 1rem 0; font-size: 0.85rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; display: flex; align-items: center; gap: 8px;">
+                        <i data-lucide="key-round" style="color: var(--cnx-orange); width: 18px;"></i> Alterar Senha de Acesso
+                    </h3>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div>
+                            <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; display: block; margin-bottom: 4px;">Nova Senha</label>
+                            <input type="password" id="cfg-nova-senha" class="input-standard" placeholder="Mínimo 6 caracteres" style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; display: block; margin-bottom: 4px;">Confirmar Nova Senha</label>
+                            <input type="password" id="cfg-confirma-senha" class="input-standard" placeholder="Repita a nova senha" style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+                        </div>
+                        <button id="btn-cfg-salvar-senha" style="align-self: flex-end; background: var(--cnx-blue); color: white; border: none; padding: 0.55rem 1.25rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                            <i data-lucide="save" style="width: 15px; color: var(--cnx-orange);"></i> Atualizar Senha
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA 2: REGRAS DE OPERAÇÃO -->
+        <div class="cfg-tab-content" id="cfg-tab-regras" style="display: none;">
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; max-width: 720px;">
+                <h3 style="margin: 0 0 1.25rem 0; font-size: 0.85rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="sliders" style="color: var(--cnx-orange); width: 18px;"></i> Parâmetros Operacionais
+                </h3>
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div>
+                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; display: block; margin-bottom: 4px;">Prazo padrão de devolução em Empréstimos (dias)</label>
+                        <input type="number" id="cfg-regra-prazo" min="1" max="365" value="7" class="input-standard" style="width: 140px; padding: 0.55rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700;">
+                    </div>
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.82rem; color: #334155; font-weight: 600;">
+                        <input type="checkbox" id="cfg-regra-anexo-req" style="width: 16px; height: 16px; cursor: pointer;">
+                        Exigir ficha assinada anexada antes de concluir Requisições
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.82rem; color: #334155; font-weight: 600;">
+                        <input type="checkbox" id="cfg-regra-anexo-emp" style="width: 16px; height: 16px; cursor: pointer;">
+                        Exigir termo assinado anexado antes de concluir Empréstimos
+                    </label>
+                </div>
+                <div style="display: flex; justify-content: flex-end; margin-top: 1.25rem;">
+                    <button id="btn-cfg-salvar-regras" style="background: var(--cnx-blue); color: white; border: none; padding: 0.6rem 1.4rem; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                        <i data-lucide="save" style="width: 15px; color: var(--cnx-orange);"></i> Salvar Regras
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA 3: RETENÇÃO DE BUCKETS -->
+        <div class="cfg-tab-content" id="cfg-tab-buckets" style="display: none;">
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; max-width: 780px;">
+                <h3 style="margin: 0 0 0.35rem 0; font-size: 0.85rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="hard-drive" style="color: var(--cnx-orange); width: 18px;"></i> Política de Retenção de Arquivos (Storage)
+                </h3>
+                <p style="margin: 0 0 1.25rem 0; font-size: 0.75rem; color: #64748b;">Defina por quantos dias os PDFs assinados permanecem armazenados. O bucket de <strong>avatar_usuario</strong> é preservado permanentemente.</p>
+
+                <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+                        <div>
+                            <strong style="font-size: 0.82rem; color: var(--cnx-blue);">requisicoes-assinaturas</strong>
+                            <div style="font-size: 0.72rem; color: #64748b;">Fichas de separação e envio assinadas</div>
+                        </div>
+                        <select id="cfg-bucket-req" class="input-standard" style="padding: 0.45rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700; cursor: pointer;">
+                            <option value="30">30 dias</option>
+                            <option value="60">60 dias</option>
+                            <option value="90">90 dias</option>
+                            <option value="180">180 dias</option>
+                            <option value="365">365 dias</option>
+                            <option value="0">Manter sempre (Ilimitado)</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+                        <div>
+                            <strong style="font-size: 0.82rem; color: var(--cnx-blue);">emprestimos-assinaturas</strong>
+                            <div style="font-size: 0.72rem; color: #64748b;">Termos de responsabilidade de empréstimos</div>
+                        </div>
+                        <select id="cfg-bucket-emp" class="input-standard" style="padding: 0.45rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700; cursor: pointer;">
+                            <option value="30">30 dias</option>
+                            <option value="60">60 dias</option>
+                            <option value="90">90 dias</option>
+                            <option value="180">180 dias</option>
+                            <option value="365">365 dias</option>
+                            <option value="0">Manter sempre (Ilimitado)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.25rem; flex-wrap: wrap; gap: 10px;">
+                    <button id="btn-cfg-limpar-buckets" style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; padding: 0.55rem 1.1rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                        <i data-lucide="trash-2" style="width: 15px;"></i> Executar Limpeza Agora
+                    </button>
+                    <button id="btn-cfg-salvar-buckets" style="background: var(--cnx-blue); color: white; border: none; padding: 0.6rem 1.4rem; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                        <i data-lucide="save" style="width: 15px; color: var(--cnx-orange);"></i> Salvar Política
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA 4: GESTÃO DE CARGOS -->
+        <div class="cfg-tab-content" id="cfg-tab-cargos" style="display: none;">
+            <div style="display: grid; grid-template-columns: 280px 1fr; gap: 1rem; align-items: start;">
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                    <div style="padding: 0.85rem 1rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="font-size: 0.78rem; color: var(--cnx-blue); text-transform: uppercase;">Cargos Cadastrados</strong>
+                        <button id="btn-cfg-novo-cargo" style="background: var(--cnx-orange); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <i data-lucide="plus" style="width: 12px;"></i> Novo
+                        </button>
+                    </div>
+                    <div id="cfg-lista-cargos" style="display: flex; flex-direction: column; max-height: 460px; overflow-y: auto;"></div>
+                </div>
+
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem;">
+                    <div id="cfg-cargo-vazio" style="text-align: center; padding: 3rem 1rem; color: #94a3b8; font-size: 0.82rem;">
+                        Selecione um cargo ao lado para editar o nome e a matriz de permissões.
+                    </div>
+                    <div id="cfg-cargo-editor" style="display: none;">
+                        <div style="display: flex; gap: 10px; align-items: flex-end; margin-bottom: 1rem;">
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; display: block; margin-bottom: 4px;">Nome do Cargo</label>
+                                <input type="text" id="cfg-cargo-nome" class="input-standard input-upper" style="width: 100%; padding: 0.55rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700;">
+                            </div>
+                            <button id="btn-cfg-excluir-cargo" style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; padding: 0.55rem 0.9rem; border-radius: 6px; font-weight: 700; font-size: 0.78rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                <i data-lucide="trash-2" style="width: 14px;"></i> Excluir
+                            </button>
+                            <button id="btn-cfg-salvar-cargo" style="background: var(--cnx-blue); color: white; border: none; padding: 0.55rem 1.2rem; border-radius: 6px; font-weight: 700; font-size: 0.78rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                <i data-lucide="save" style="width: 14px; color: var(--cnx-orange);"></i> Salvar Cargo
+                            </button>
+                        </div>
+                        <div style="border: 1px solid #e2e8f0; border-radius: 6px; max-height: 400px; overflow-y: auto; overflow-x: hidden; position: relative;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: var(--cnx-blue); color: white; font-size: 0.72rem;">
+                                        <th style="padding: 0.6rem 0.85rem; text-align: left; width: 200px; position: sticky; top: 0; z-index: 5; background: var(--cnx-blue);">Menu / Tela</th>
+                                        <th style="padding: 0.6rem 0.85rem; text-align: left; position: sticky; top: 0; z-index: 5; background: var(--cnx-blue);">Funcionalidades</th>
+                                        <th style="padding: 0.6rem 0.85rem; text-align: center; width: 90px; position: sticky; top: 0; z-index: 5; background: #001f42;">Todos</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cfg-cargo-perms-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA 5: AUDITORIA / LOG DE USO -->
+        <div class="cfg-tab-content" id="cfg-tab-auditoria" style="display: none; flex-direction: column; height: 100%; overflow: hidden;">
+            <div class="filter-bar">
+                <div class="filter-input-wrapper">
+                    <select class="filter-select" id="aud-filtro-campo">
+                        <option value="criado_em" selected>Data (Intervalo)</option>
+                        <option value="usuario_id">Usuário</option>
+                        <option value="acao">Ação</option>
+                        <option value="tabela">Módulo / Tabela</option>
+                        <option value="registro_id">Registro ID</option>
+                    </select>
+
+                    <!-- Intervalo de Datas -->
+                    <div class="aud-input-dinamico" id="aud-wrapper-data" style="display: flex; align-items: center; gap: 6px; flex: 1;">
+                        <input type="date" id="aud-data-ini" class="filter-input" style="border: none; flex: 1;">
+                        <span style="font-size: 0.7rem; font-weight: 800; color: #64748b;">ATÉ</span>
+                        <input type="date" id="aud-data-fim" class="filter-input" style="border: none; flex: 1;">
+                    </div>
+
+                    <!-- Select Usuário -->
+                    <select id="aud-valor-usuario" class="filter-input aud-input-dinamico" style="display: none; cursor: pointer;">
+                        <option value="">Selecione o Usuário...</option>
+                    </select>
+
+                    <!-- Select Ação -->
+                    <select id="aud-valor-acao" class="filter-input aud-input-dinamico" style="display: none; cursor: pointer;">
+                        <option value="INSERT">CRIAR (INSERT)</option>
+                        <option value="UPDATE">EDITAR (UPDATE)</option>
+                        <option value="DELETE">EXCLUIR (DELETE)</option>
+                        <option value="LOGIN">LOGIN</option>
+                    </select>
+
+                    <!-- Select Tabela -->
+                    <select id="aud-valor-tabela" class="filter-input aud-input-dinamico" style="display: none; cursor: pointer;">
+                        <option value="produtos">PRODUTOS</option>
+                        <option value="almoxarifados">ALMOXARIFADOS</option>
+                        <option value="usuarios">USUÁRIOS</option>
+                        <option value="cargos">CARGOS</option>
+                        <option value="requisicoes">REQUISIÇÕES</option>
+                        <option value="emprestimos">EMPRÉSTIMOS</option>
+                        <option value="ajustes_estoque">AJUSTES DE ESTOQUE</option>
+                        <option value="coletas_mac">COLETAS DE MAC</option>
+                    </select>
+
+                    <!-- Texto Registro ID -->
+                    <div class="input-with-checkbox aud-input-dinamico" id="aud-wrapper-texto" style="display: none;">
+                        <input type="text" id="aud-valor-texto" class="filter-input" placeholder="Digite o ID do registro...">
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                    <button class="filter-btn add" id="btn-aud-add-filtro"><i data-lucide="list-plus"></i> Adicionar</button>
+                    <button class="filter-btn apply" id="btn-aud-aplicar"><i data-lucide="check"></i> Aplicar</button>
+                    <button class="filter-btn clear" id="btn-aud-limpar"><i data-lucide="eraser"></i> Limpar</button>
+                    <button class="filter-btn" id="btn-aud-gerar-rel" style="background: var(--cnx-blue); color: white; border: none; font-weight: 700;">
+                        <i data-lucide="file-bar-chart-2"></i> Gerar Relatório
+                    </button>
+                </div>
+            </div>
+
+            <!-- Barra de Contagem e Tags -->
+            <div class="active-filters-area">
+                <div class="tabela-info-bar">
+                    <span>EXIBINDO <strong id="lbl-aud-exibidos">0</strong> REGISTROS DE AUDITORIA</span>
+                </div>
+                <div class="tags-dropdown-wrapper">
+                    <button id="btn-aud-refresh" title="Recarregar Logs" style="background: none; border: none; color: #64748b; cursor: pointer; display: flex; align-items: center; padding: 0; margin-right: 8px;">
+                        <i data-lucide="refresh-cw" class="refresh-icon" style="width: 14px; height: 14px;"></i>
+                    </button>
+                    <i data-lucide="filter" style="width: 12px; height: 12px; color: #64748b;"></i>
+                    <span class="filters-label" id="lbl-aud-filtros-ativos">Nenhum filtro aplicado</span>
+                    <div class="tags-container" id="container-aud-tags-inline"></div>
+                </div>
+            </div>
+
+            <!-- Tabela com Cabeçalho Fixo e Sem Scroll Horizontal -->
+            <div class="table-container" style="flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; position: relative;">
+                <table class="data-table" style="table-layout: fixed; width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th style="width: 13%; position: sticky; top: 0; z-index: 5; background: var(--cnx-blue);">Data / Hora</th>
+                            <th style="width: 18%; position: sticky; top: 0; z-index: 5; background: var(--cnx-blue);">Usuário</th>
+                            <th style="width: 9%; text-align: center; position: sticky; top: 0; z-index: 5; background: var(--cnx-blue);">Ação</th>
+                            <th style="width: 13%; position: sticky; top: 0; z-index: 5; background: var(--cnx-blue);">Módulo</th>
+                            <th style="width: 40%; position: sticky; top: 0; z-index: 5; background: var(--cnx-blue);">O que foi feito (Resumo)</th>
+                            <th style="width: 7%; text-align: center; position: sticky; top: 0; z-index: 5; background: var(--cnx-blue);">Detalhes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-auditoria">
+                        <tr><td colspan="6" style="text-align: center; padding: 2rem; color: #64748b;">Carregando logs de auditoria...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ABA 6: BACKUP E IMPORTAÇÃO DE TODAS AS TABELAS -->
+        <div class="cfg-tab-content" id="cfg-tab-backup" style="display: none;">
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <h3 style="margin: 0 0 0.25rem 0; font-size: 0.85rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="database-backup" style="color: var(--cnx-orange); width: 18px;"></i> Backup e Importação de Dados (CSV)
+                        </h3>
+                        <p style="margin: 0; font-size: 0.75rem; color: #64748b;">Exporte qualquer tabela do banco de dados ou importe arquivos CSV formatados com o mesmo cabeçalho da tabela.</p>
+                    </div>
+                    <input type="file" id="cfg-input-import-csv" accept=".csv,text/csv" style="display: none;">
+                </div>
+
+                <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.75rem; color: #9a3412; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="alert-triangle" style="width: 18px; height: 18px; flex-shrink: 0;"></i>
+                    <span><strong>Atenção na Importação:</strong> Utilize sempre um arquivo CSV exportado desta tela como modelo. Registros com o mesmo <strong>ID</strong> serão atualizados (upsert) e novos registros serão inseridos.</span>
+                </div>
+
+                <div id="cfg-grid-backup-tabelas" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
+                    <!-- Injetado via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA 7: SOBRE + CONTADOR SUPABASE -->
+        <div class="cfg-tab-content" id="cfg-tab-sobre" style="display: none;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; align-items: start;">
+                <!-- Card Informações e Link -->
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid #e2e8f0;">
+                        <img src="../assets/imagens/Logo.png" alt="Logo" style="width: 50px; height: 50px; object-fit: contain;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--cnx-blue);">Smart CNX — Gestão</h3>
+                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 600;">
+                                Versão <strong id="cfg-sobre-versao" style="color: var(--cnx-blue);">2.0</strong>
+                                • Atualizado em <strong id="cfg-sobre-data-versao" style="color: var(--cnx-orange);">20/11/2026</strong>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 0.7rem; font-size: 0.8rem; color: #334155;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: #64748b; font-weight: 700;">Desenvolvedor:</span>
+                            <strong>Rondinele Barbosa Santos</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: #64748b; font-weight: 700;">Plataforma:</span>
+                            <strong>HTML5 • CSS3 • JS • Supabase • Netlify</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: #64748b; font-weight: 700;">Banco de Dados:</span>
+                            <span style="background: #dcfce7; color: #166534; padding: 2px 10px; border-radius: 99px; font-size: 0.68rem; font-weight: 800;">CONECTADO</span>
+                        </div>
+
+                        <div style="margin-top: 0.5rem; padding-top: 0.85rem; border-top: 1px dashed #e2e8f0;">
+                            <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; display: block; margin-bottom: 6px;">Link Público da Aplicação</label>
+                            <div style="display: flex; gap: 6px;">
+                                <input type="text" id="cfg-sobre-link" placeholder="https://..." style="flex: 1; padding: 0.5rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 6px; background: #f8fafc; font-weight: 600; color: #334155; font-size: 0.78rem;">
+                                <button id="btn-cfg-copiar-link" title="Copiar Link" style="background: #f1f5f9; color: var(--cnx-blue); border: 1px solid #cbd5e1; padding: 0.5rem 0.75rem; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                                    <i data-lucide="copy" style="width: 14px;"></i> Copiar
+                                </button>
+                                <button id="btn-cfg-salvar-link" class="cfg-admin-only" title="Salvar Link" style="background: var(--cnx-blue); color: white; border: none; padding: 0.5rem 0.85rem; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                                    <i data-lucide="save" style="width: 14px; color: var(--cnx-orange);"></i> Salvar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Monitor de Uso (Plano Gratuito Supabase) -->
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0; font-size: 0.85rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="bar-chart-3" style="color: var(--cnx-orange); width: 18px;"></i> Uso do Plano Gratuito (Supabase)
+                        </h3>
+                        <button id="btn-cfg-atualizar-stats" title="Atualizar Métricas" style="background: none; border: none; color: #64748b; cursor: pointer; display: flex; align-items: center;">
+                            <i data-lucide="refresh-cw" class="refresh-icon" style="width: 14px; height: 14px;"></i>
+                        </button>
+                    </div>
+
+                    <!-- Contadores Rápidos -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1.25rem;">
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem;">
+                            <div style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Tabelas no Banco</div>
+                            <div id="stat-total-tabelas" style="font-size: 1.35rem; font-weight: 800; color: var(--cnx-blue);">...</div>
+                        </div>
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem;">
+                            <div style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Arquivos nos Buckets</div>
+                            <div id="stat-total-arquivos" style="font-size: 1.35rem; font-weight: 800; color: var(--cnx-orange);">...</div>
+                        </div>
+                    </div>
+
+                    <!-- Barra Banco de Dados (Limite 500 MB) -->
+                    <div style="margin-bottom: 1.15rem;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 4px;">
+                            <span>Banco de Dados (Limite: 500 MB)</span>
+                            <span id="stat-db-pct" style="color: var(--cnx-blue);">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 10px; background: #e2e8f0; border-radius: 99px; overflow: hidden;">
+                            <div id="stat-db-bar" style="width: 0%; height: 100%; background: var(--cnx-blue); transition: width 0.4s;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #64748b; margin-top: 4px;">
+                            <span>Usado: <strong id="stat-db-usado">-</strong></span>
+                            <span>Disponível: <strong id="stat-db-disp">-</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- Barra Storage (Limite 1 GB) -->
+                    <div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 4px;">
+                            <span>Storage / Buckets (Limite: 1 GB)</span>
+                            <span id="stat-st-pct" style="color: var(--cnx-orange);">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 10px; background: #e2e8f0; border-radius: 99px; overflow: hidden;">
+                            <div id="stat-st-bar" style="width: 0%; height: 100%; background: var(--cnx-orange); transition: width 0.4s;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #64748b; margin-top: 4px;">
+                            <span>Usado: <strong id="stat-st-usado">-</strong></span>
+                            <span>Disponível: <strong id="stat-st-disp">-</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MODAL EXPORTAR AUDITORIA (PDF / EXCEL) -->
+    <div class="modal-overlay" id="modal-exportar-auditoria" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); z-index: 10000; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 420px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); overflow: hidden;">
+            <div style="background: var(--cnx-blue); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; color: white; font-size: 1rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="file-bar-chart-2" style="color: var(--cnx-orange); width: 20px;"></i> Exportar Auditoria
+                </h3>
+                <button id="btn-fechar-modal-aud-export" style="background: none; border: none; color: rgba(255,255,255,0.75); cursor: pointer; display: flex;"><i data-lucide="x"></i></button>
+            </div>
+            <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 10px;">
+                <p style="margin: 0 0 6px 0; font-size: 0.82rem; color: #475569; text-align: center;">
+                    Escolha o formato para exportar os <strong id="lbl-qtd-aud-export">0</strong> registros de auditoria filtrados:
+                </p>
+                <button id="btn-aud-confirmar-pdf" style="background: var(--cnx-blue); color: white; border: none; padding: 0.85rem 1rem; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <i data-lucide="printer" style="width: 18px; color: var(--cnx-orange);"></i> Gerar Documento PDF
+                </button>
+                <button id="btn-aud-confirmar-excel" style="background: #f0fdf4; color: #166534; border: 1px solid #86efac; padding: 0.85rem 1rem; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <i data-lucide="file-spreadsheet" style="width: 18px; color: #16a34a;"></i> Exportar Planilha Excel (CSV)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

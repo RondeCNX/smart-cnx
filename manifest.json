@@ -1,0 +1,25 @@
+{
+  "name": "Smart CNX — Gestão de Almoxarifado",
+  "short_name": "Smart CNX",
+  "description": "Sistema de gestão de almoxarifados, requisições, empréstimos e coletas de MAC.",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#002b5b",
+  "theme_color": "#f26522",
+  "icons": [
+    {
+      "src": "/assets/imagens/Logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/imagens/Logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

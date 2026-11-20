@@ -3,6 +3,13 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#f26522">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/assets/imagens/Logo.png">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart CNX - Gestão</title>
     
@@ -66,9 +73,10 @@
                             <div class="divider"></div>
                             <a href="#" onclick="navegarPara('rel_ajustes_mac')"><i data-lucide="cpu"></i> Relatório de Ajustes de MAC</a>
                         </div>
-                    </div>
-                    <a href="#" class="nav-btn" onclick="navegarPara('configuracoes')"><i data-lucide="settings"></i> <span>Configurações</span></a>
-                    
+                    </div>                    
+                    <button class="nav-btn" onclick="navegarPara('configuracoes')">
+                        <i data-lucide="settings"></i> <span>Configurações</span>
+                    </button>
                     <button class="btn-logout" onclick="fazerLogout()">
                         <i data-lucide="log-out"></i> <span>Sair</span>
                     </button>
@@ -113,7 +121,7 @@
                                 <span>Todos os Almoxarifados</span>
                             </label>
                         </div>
-                        <div class="filtro-lista" id="lista-almoxarifados" style="max-height: 240px; overflow-y: auto; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; background: white;">
+                        <div class="filtro-lista" id="lista-almoxarifados" style="display: block; max-height: 240px; overflow-y: auto; padding: 6px 8px; background: white;">
                             <!-- Injetado via JS -->
                         </div>
                     </div>
@@ -152,6 +160,17 @@
 
     <!-- Scripts do Sistema -->
     <script src="../config.js"></script>
-    <script src="js/admin.js?v=2.0"></script>
+    <script src="js/admin.js?v=2.2"></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((reg) => console.log('PWA Service Worker registrado:', reg.scope))
+                    .catch((err) => console.error('Erro ao registrar Service Worker:', err));
+            });
+        }
+    </script>
+
 </body>
 </html>

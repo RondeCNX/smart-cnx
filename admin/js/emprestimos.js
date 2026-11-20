@@ -78,6 +78,7 @@
     let nomeUsuarioLogado = '';
     let isAdmin = false;
     let isGestor = false;
+    let acessoTodos = false;
     let almoxarifadosVinculadosIds = []; 
     let almoxarifados = [];
     let produtos = [];
@@ -144,13 +145,13 @@
             if (!session) return;
             usuarioLogadoId = session.user.id;
 
-            // CORREÇÃO: Selecionar o nome_completo do banco
             const { data: user } = await window.db.from('usuarios').select('nome_completo, acesso_todos_almoxarifados, cargos(nome)').eq('id', usuarioLogadoId).single();
             nomeUsuarioLogado = user?.nome_completo || '';
             
             const upperCargo = user?.cargos?.nome?.toUpperCase() || '';
             isAdmin = upperCargo === 'ADMINISTRADOR';
             isGestor = isAdmin || upperCargo.includes('SUPERVISOR');
+            acessoTodos = isAdmin || !!user?.acesso_todos_almoxarifados;
 
             await buscarEmprestimos();
         } catch (e) { console.error(e); }
@@ -164,14 +165,14 @@
         almoxarifados = resAlmox || [];
         
         const { data: vincs } = await window.db.from('usuario_almoxarifados').select('almoxarifado_id').eq('usuario_id', usuarioLogadoId);
-        almoxarifadosVinculadosIds = vincs ? vincs.map(v => v.almoxarifado_id) : [];
+        const acessosDiretos = vincs ? vincs.map(v => v.almoxarifado_id) : [];
+        almoxarifadosVinculadosIds = acessoTodos ? almoxarifados.map(a => a.id) : acessosDiretos;
 
-        // CORREÇÃO: Puxar os dados do utilizador que criou o registo
         let query = window.db.from('emprestimos')
             .select(`*, usuarios(nome_completo), almoxarifado:almoxarifados(codigo, descricao), itens:emprestimo_itens(status, produtos(descricao, codigo))`)
             .order('codigo', { ascending: false });
 
-        if (!isAdmin) {
+        if (!acessoTodos) {
             const idsFmt = almoxarifadosVinculadosIds.map(i => `"${i}"`).join(',');
             if (idsFmt) query = query.in('almoxarifado_id', almoxarifadosVinculadosIds);
             else { todosEmprestimos = []; aplicarFiltrosEOrdenar(); return; }
@@ -259,11 +260,10 @@
         renderizarTagsFiltros(); aplicarFiltrosEOrdenar();
     });
 
-   function renderizarTagsFiltros() {
+    function renderizarTagsFiltros() {
         const containerTagsInline = moduloContent.querySelector('#container-tags-inline');
         const lblFiltrosAtivos = moduloContent.querySelector('#lbl-filtros-ativos');
         
-        // Garante que o container flex funciona horizontalmente
         containerTagsInline.style.display = 'flex';
         containerTagsInline.style.gap = '4px';
         containerTagsInline.style.alignItems = 'center';
@@ -276,7 +276,6 @@
         
         lblFiltrosAtivos.style.display = 'none';
 
-        // 1. O primeiro filtro fica sempre visível inline
         const firstFiltro = filtrosAtivos[0];
         const isExato = firstFiltro.exato && firstFiltro.campo !== 'status' && !firstFiltro.campo.includes('data') ? ' (Exato)' : '';
         
@@ -289,7 +288,6 @@
             </div>
         `;
 
-        // 2. Se houver mais filtros, agrupa-os no dropdown flutuante
         if (filtrosAtivos.length > 1) {
             const extraCount = filtrosAtivos.length - 1;
             htmlInline += `
@@ -298,7 +296,6 @@
                         +${extraCount} <i data-lucide="chevron-down" style="width:12px; height:12px;"></i>
                     </button>
                     
-                    <!-- Menu Flutuante -->
                     <div id="drop-filters-menu" style="display: none; position: absolute; top: 100%; right: 0; margin-top: 4px; background: white; border: 1px solid #cbd5e1; border-radius: 6px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); width: 280px; z-index: 50;">
                         <div style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border-radius: 6px 6px 0 0;">
                             <strong style="color: var(--cnx-blue); font-size: 0.75rem;">Filtros Ativos</strong>
@@ -307,7 +304,6 @@
                         <div style="padding: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 250px; overflow-y: auto;">
             `;
             
-            // Renderiza TODOS os filtros dentro do modal (incluindo o primeiro)
             filtrosAtivos.forEach(f => {
                 const fExato = f.exato && f.campo !== 'status' && !f.campo.includes('data') ? ' (Exato)' : '';
                 htmlInline += `
@@ -333,7 +329,6 @@
         containerTagsInline.innerHTML = htmlInline;
         lucide.createIcons();
 
-        // Ancorar Eventos do Dropdown
         const btnToggle = containerTagsInline.querySelector('#btn-toggle-filters-drop');
         const dropMenu = containerTagsInline.querySelector('#drop-filters-menu');
         const btnClose = containerTagsInline.querySelector('#btn-close-filters-drop');
@@ -349,7 +344,6 @@
                 dropMenu.style.display = 'none';
             });
             
-            // Fechar ao clicar fora do menu
             document.addEventListener('click', function closeDrop(e) {
                 if (!dropMenu.contains(e.target) && e.target !== btnToggle && !btnToggle.contains(e.target)) {
                     dropMenu.style.display = 'none';
@@ -392,7 +386,6 @@
             let btnHtml = `<button class="btn-acao btn-ver" data-id="${r.id}" title="Visualizar Detalhes" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="eye" style="width:16px;"></i></button>`;
             btnHtml += `<button class="btn-acao btn-historico" data-id="${r.id}" title="Auditoria/Histórico" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="rotate-ccw" style="width:16px;"></i></button>`;
 
-            // NOVO: Botão Dinâmico de Impressão / Anexo
             if (r.arquivo_assinatura) {
                 btnHtml += `<button class="btn-acao btn-gestao-anexo" data-id="${r.id}" data-tem-anexo="true" title="Ficha Assinada Anexada" style="background:none; border:none; color:#10b981; cursor:pointer;"><i data-lucide="file-check-2" style="width:16px;"></i></button>`;
             } else {
@@ -489,14 +482,42 @@
         if (e.target.closest('#modal-emp') && !e.target.classList.contains('filter-input')) formFoiAlterado = true;
     });
 
+    // Fechamento por ESC respeitando a hierarquia dos modais
     window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            const customPrompt = document.getElementById('custom-prompt-modal');
-            const mainModal = document.getElementById('modal-emp');
-            if (customPrompt && customPrompt.style.display !== 'none') return; 
-            if (mainModal && mainModal.style.display !== 'none') {
-                e.preventDefault(); e.stopPropagation(); fecharModalEmprestimo();
-            }
+        if (e.key !== 'Escape') return;
+
+        const customPrompt = document.getElementById('custom-prompt-modal');
+        if (customPrompt && customPrompt.style.display !== 'none') {
+            return;
+        }
+
+        const pdfModal = document.getElementById('pdf-frame-modal');
+        if (pdfModal && pdfModal.style.display !== 'none') {
+            e.preventDefault();
+            e.stopPropagation();
+            pdfModal.style.display = 'none';
+            return;
+        }
+
+        const anexoModal = document.getElementById('modal-anexo-emp');
+        if (anexoModal && anexoModal.style.display !== 'none') {
+            e.preventDefault();
+            e.stopPropagation();
+            anexoModal.style.display = 'none';
+            return;
+        }
+
+        if (modalConsulta && modalConsulta.style.display !== 'none') {
+            e.preventDefault();
+            e.stopPropagation();
+            modalConsulta.style.display = 'none';
+            return;
+        }
+
+        if (modalEmp && modalEmp.style.display !== 'none') {
+            e.preventDefault();
+            e.stopPropagation();
+            fecharModalEmprestimo();
         }
     }, true);
 
@@ -513,6 +534,9 @@
             theadConsulta.innerHTML = `<tr><th style="padding: 0.6rem; width: 80px; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Código</th><th style="padding: 0.6rem; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Descrição</th><th style="padding: 0.6rem; width: 60px; text-align:center; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Ação</th></tr>`;
             const { data: almoxs } = await window.db.from('almoxarifados').select('*').eq('status', 'ATIVO').order('codigo');
             almoxarifados = almoxs || [];
+            if (acessoTodos) {
+                almoxarifadosVinculadosIds = almoxarifados.map(a => a.id);
+            }
         } else {
             tituloConsulta.innerHTML = `<i data-lucide="package" style="color: var(--cnx-orange); width: 18px;"></i> <span>Selecionar Equipamento</span>`;
             theadConsulta.innerHTML = `<tr><th style="padding: 0.6rem; width: 80px; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Código</th><th style="padding: 0.6rem; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Descrição</th><th style="padding: 0.6rem; width: 60px; text-align:center; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Ação</th></tr>`;
@@ -531,8 +555,13 @@
         let html = '';
 
         if (tipoConsultaAtual === 'almoxarifado') {
-            let lista = almoxarifados.filter(a => almoxarifadosVinculadosIds.includes(a.id));
+            let lista = acessoTodos
+                ? [...almoxarifados]
+                : almoxarifados.filter(a => almoxarifadosVinculadosIds.includes(a.id));
+
             if (termo) lista = lista.filter(a => a.codigo.includes(termo) || a.descricao.includes(termo));
+
+            lista.sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR', { sensitivity: 'base' }));
             
             if (lista.length === 0) html = `<tr><td colspan="3" style="text-align:center; padding:2rem; color:#64748b;">Nenhum almoxarifado disponível.</td></tr>`;
             else {
@@ -545,8 +574,10 @@
                 `).join('');
             }
         } else {
-            let lista = produtos;
+            let lista = [...produtos];
             if (termo) lista = lista.filter(p => p.codigo.includes(termo) || p.descricao.includes(termo));
+
+            lista.sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR', { sensitivity: 'base' }));
             
             if (lista.length === 0) html = `<tr><td colspan="3" style="text-align:center; padding:2rem; color:#64748b;">Nenhum equipamento encontrado.</td></tr>`;
             else {
@@ -748,7 +779,6 @@
 
         let html = '';
         itensEmpCache.forEach(i => {
-            // Em devolução, oculta sumariamente o que já entrou devolvido da base
             if (modoForm === 'devolver' && i.status_item_original === 'DEVOLVIDO') return;
 
             let acaoHtml = `<td style="display:none;"></td>`;
@@ -1036,7 +1066,6 @@
             doc.text(`N.º do Empréstimo: ${r.codigoFormatado}`, margemEsq, 130);
             doc.text(`Data de Saída: ${new Date(r.data_emprestimo + 'T12:00:00').toLocaleDateString('pt-BR')}`, margemDir, 130, { align: 'right' });
             
-            // CORREÇÃO: Utiliza o objeto de utilizadores que resgatámos do banco
             const nomeCriador = r.usuarios ? r.usuarios.nome_completo : 'Sistema';
             doc.text(`Criado por: ${nomeCriador}`, margemEsq, 145);
             
@@ -1113,7 +1142,6 @@
         const r = todosEmprestimos.find(x => x.id === empIdParaAnexo);
         
         if (r && r.arquivo_assinatura) {
-            // INJEÇÃO FORÇADA TAMBÉM NA VISUALIZAÇÃO
             if (!document.getElementById('pdf-frame-modal')) {
                 document.body.insertAdjacentHTML('beforeend', `
                     <div class="modal-overlay" id="pdf-frame-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); z-index: 11000; align-items: center; justify-content: center; padding: 1rem;">
@@ -1150,7 +1178,6 @@
         if (!conf) return;
 
         try {
-            // Extrai o nome do arquivo da URL para apagar no storage
             const urlParts = r.arquivo_assinatura.split('/');
             const fileName = urlParts[urlParts.length - 1];
             
