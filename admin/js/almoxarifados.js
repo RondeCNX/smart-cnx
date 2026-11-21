@@ -61,28 +61,26 @@
     async function carregarPermissoes() {
         try {
             const { data: { session } } = await window.db.auth.getSession();
-            if (session) {
-                usuarioLogadoId = session.user.id;
-                const { data: user } = await window.db.from('usuarios').select('cargos(nome, permissoes)').eq('id', usuarioLogadoId).single();
-                
-                if (user?.cargos?.nome && user.cargos.nome.toUpperCase() === 'ADMINISTRADOR') {
-                    permissoesAcesso = { view: true, create: true, edit: true, delete: true };
-                } else if (user?.cargos?.permissoes?.almoxarifados) {
-                    permissoesAcesso = user.cargos.permissoes.almoxarifados;
-                }
-            }
-            
+            if (session) usuarioLogadoId = session.user.id;
+
+            permissoesAcesso = {
+                view: window.temPermissao('almoxarifados', 'view'),
+                create: window.temPermissao('almoxarifados', 'create'),
+                edit: window.temPermissao('almoxarifados', 'edit'),
+                delete: window.temPermissao('almoxarifados', 'delete')
+            };
+
             if (!permissoesAcesso.view) {
                 moduloContent.innerHTML = `<div style="text-align: center; padding: 4rem; color: #ef4444;"><i data-lucide="shield-alert" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i><h2 style="font-weight: 800;">Acesso Negado</h2><p>Você não tem permissão para visualizar o Cadastro de Almoxarifados.</p></div>`;
                 lucide.createIcons();
                 return false;
             }
-            
-            if (!permissoesAcesso.create) btnNovo.style.display = 'none';
+
+            if (btnNovo) btnNovo.style.display = permissoesAcesso.create ? 'flex' : 'none';
             return true;
-        } catch (error) { 
-            console.error(error); 
-            return false; 
+        } catch (error) {
+            console.error(error);
+            return false;
         }
     }
 
@@ -357,6 +355,10 @@
     }
 
     btnNovo.addEventListener('click', () => {
+        if (!permissoesAcesso.create) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para criar almoxarifados.', 'error');
+            return;
+        }
         modoEdicao = false; almoxEmEdicaoId = null;
         inCodigo.value = ''; inDescricao.value = ''; inTipo.value = 'TÉCNICO'; inCidade.value = '';
         
@@ -395,6 +397,10 @@
         }
 
         if (btnStatus) {
+            if (!permissoesAcesso.delete) {
+                window.appAlert('Acesso Negado', 'Você não tem permissão para inativar/ativar almoxarifados.', 'error');
+                return;
+            }
             const id = btnStatus.dataset.id;
             const desc = btnStatus.dataset.desc;
             const isAtivo = btnStatus.dataset.ativo === 'true';
@@ -414,6 +420,10 @@
         if (btnVer) {
             abrirModalEdicao(btnVer.dataset.id, true);
         } else if (btnEdit) {
+            if (!permissoesAcesso.edit) {
+                window.appAlert('Acesso Negado', 'Você não tem permissão para editar almoxarifados.', 'error');
+                return;
+            }
             abrirModalEdicao(btnEdit.dataset.id, false);
         }
     });
@@ -446,6 +456,12 @@
 
     // Gravar Dados
     btnSalvar.addEventListener('click', async () => {
+
+        if ((modoEdicao && !permissoesAcesso.edit) || (!modoEdicao && !permissoesAcesso.create)) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para salvar alterações neste cadastro.', 'error');
+            return;
+        }
+
         if(!inCodigo.value || !inDescricao.value || !inTipo.value) { 
             window.appAlert("Dados Incompletos", "Preencha todos os campos obrigatórios (*).", "warning"); 
             return; 

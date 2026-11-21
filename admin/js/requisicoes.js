@@ -43,6 +43,7 @@
         lucide.createIcons();
     }
 
+    let permissoesAcesso = { view: false, create: false, edit: false, delete: false, approve: false, dispatch: false, receive: false };
     let filtrosAtivos = [];
     let sortConfig = { key: 'codigo', direction: 'desc' };
 
@@ -161,6 +162,24 @@
     // ================= CARGA DE DADOS =================
     async function carregarDadosIniciais() {
         try {
+            permissoesAcesso = {
+                view: window.temPermissao('requisicoes', 'view'),
+                create: window.temPermissao('requisicoes', 'create'),
+                edit: window.temPermissao('requisicoes', 'edit'),
+                delete: window.temPermissao('requisicoes', 'delete'),
+                approve: window.temPermissao('requisicoes', 'approve'),
+                dispatch: window.temPermissao('requisicoes', 'dispatch'),
+                receive: window.temPermissao('requisicoes', 'receive')
+            };
+
+            if (!permissoesAcesso.view) {
+                moduloContent.innerHTML = `<div style="text-align: center; padding: 4rem; color: #ef4444;"><i data-lucide="shield-alert" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i><h2 style="font-weight: 800;">Acesso Negado</h2><p>Você não tem permissão para visualizar Requisição e Envio.</p></div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            if (btnNovaReq) btnNovaReq.style.display = permissoesAcesso.create ? 'flex' : 'none';
+
             const { data: { session } } = await window.db.auth.getSession();
             if (!session) return;
             usuarioLogadoId = session.user.id;
@@ -170,7 +189,6 @@
             const upperCargo = user?.cargos?.nome?.toUpperCase() || '';
             isAdmin = upperCargo === 'ADMINISTRADOR';
             isGestor = isAdmin || upperCargo.includes('SUPERVISOR');
-            const acessoTodos = user?.acesso_todos_almoxarifados || isGestor;
 
             await buscarRequisicoes();
         } catch (e) { console.error(e); }
@@ -403,25 +421,26 @@
             btnHtml += `<button class="btn-acao btn-historico" data-id="${r.id}" title="Auditoria/Histórico" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="rotate-ccw" style="width:16px;"></i></button>`;
 
             if (r.status === 'PENDENTE') {
-                if (isCriador || isAdmin) {
+                if ((isCriador || isAdmin) && permissoesAcesso.edit) {
                     btnHtml += `<button class="btn-acao btn-editar" data-id="${r.id}" title="Editar Pedido" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="edit-3" style="width:16px;"></i></button>`;
+                }
+                if ((isCriador || isAdmin) && permissoesAcesso.delete) {
                     btnHtml += `<button class="btn-acao btn-excluir" data-id="${r.id}" title="Excluir Pedido" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="trash-2" style="width:16px;"></i></button>`;
                 }
-                if (isAbastecedor || isAdmin) {
+                if ((isAbastecedor || isAdmin) && permissoesAcesso.approve) {
                     btnHtml += `<button class="btn-acao btn-aprovar" data-id="${r.id}" title="Aprovar / Separar" style="background:none; border:none; color:#10b981; cursor:pointer;"><i data-lucide="check-square" style="width:16px;"></i></button>`;
                     btnHtml += `<button class="btn-acao btn-reprovar" data-id="${r.id}" title="Reprovar Pedido" style="background:none; border:none; color:#f59e0b; cursor:pointer;"><i data-lucide="x-square" style="width:16px;"></i></button>`;
                 }
             } else if (r.status === 'APROVADA') {
-                if (isAbastecedor || isAdmin) {
+                if ((isAbastecedor || isAdmin) && permissoesAcesso.dispatch) {
                     btnHtml += `<button class="btn-acao btn-despachar" data-id="${r.id}" title="Confirmar Envio" style="background:none; border:none; color:#7e22ce; cursor:pointer;"><i data-lucide="truck" style="width:16px;"></i></button>`;
                 }
             } else if (r.status === 'ENVIADA') {
-                if (isCriador || (isRequisitante && !isAbastecedor) || isAdmin) {
+                if ((isCriador || (isRequisitante && !isAbastecedor) || isAdmin) && permissoesAcesso.receive) {
                     btnHtml += `<button class="btn-acao btn-receber" data-id="${r.id}" title="Confirmar Recebimento" style="background:none; border:none; color:#16a34a; cursor:pointer;"><i data-lucide="package-check" style="width:16px;"></i></button>`;
                 }
             }
 
-            // CORREÇÃO: O botão de arquivo passa a ser injetado por último
             if (r.arquivo_assinatura) {
                 btnHtml += `<button class="btn-acao btn-gestao-anexo-req" data-id="${r.id}" data-tem-anexo="true" title="Ficha Assinada Anexada" style="background:none; border:none; color:#10b981; cursor:pointer;"><i data-lucide="file-check-2" style="width:16px;"></i></button>`;
             } else {
@@ -469,6 +488,10 @@
             else if (btnAcao.classList.contains('btn-receber')) abrirFormulario('receber', id);
             else if (btnAcao.classList.contains('btn-historico')) { if(window.abrirHistorico) window.abrirHistorico('requisicoes', id); }
             else if (btnAcao.classList.contains('btn-excluir')) {
+                if (!permissoesAcesso.delete) {
+                    window.appAlert('Acesso Negado', 'Você não tem permissão para excluir requisições.', 'error');
+                    return;
+                }
                 const conf = await window.appConfirm('Excluir Pedido', 'Tem certeza que deseja apagar esta requisição permanentemente?', 'danger');
                 if (conf) {
                     await window.db.from('requisicoes').delete().eq('id', id);
@@ -476,6 +499,10 @@
                 }
             }
             else if (btnAcao.classList.contains('btn-reprovar')) {
+                if (!permissoesAcesso.approve) {
+                    window.appAlert('Acesso Negado', 'Você não tem permissão para reprovar requisições.', 'error');
+                    return;
+                }
                 let motivo = await window.appCustomPrompt('Rejeitar Pedido', 'Por favor, informe o motivo da rejeição deste pedido:');
                 if (motivo === null) return; 
                 if (motivo.trim() === '') { window.appAlert('Atenção', 'É obrigatório informar o motivo para rejeitar.', 'warning'); return; }
@@ -712,7 +739,13 @@
     };
 
     // ================= FORMULÁRIO DE REQUISIÇÃO =================
-    btnNovaReq.addEventListener('click', () => abrirFormulario('novo', null));
+    btnNovaReq.addEventListener('click', () => {
+        if (!permissoesAcesso.create) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para criar requisições.', 'error');
+            return;
+        }
+        abrirFormulario('novo', null);
+    });
     
     async function fecharModalRequisicao() {
         if (formFoiAlterado && modoForm !== 'visualizar') {
@@ -725,6 +758,12 @@
     moduloContent.querySelector('#btn-fechar-req').addEventListener('click', fecharModalRequisicao);
 
     async function abrirFormulario(modo, reqId) {
+        const mapaModoPerm = { novo: 'create', editar: 'edit', aprovar: 'approve', despachar: 'dispatch', receber: 'receive' };
+        if (mapaModoPerm[modo] && !permissoesAcesso[mapaModoPerm[modo]]) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para executar esta ação.', 'error');
+            return;
+        }
+
         modoForm = modo;
         reqEmEdicaoId = reqId;
         itensReqCache = [];

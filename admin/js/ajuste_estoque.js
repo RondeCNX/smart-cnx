@@ -52,6 +52,7 @@
     let usuarioLogadoId = null;
     let isAdmin = false;
     let isGestor = false;
+    let permissoesAcesso = { view: false, create: false, edit: false, delete: false };
     let meusAlmoxarifadosIds = [];
     
     let almoxarifados = [];
@@ -61,7 +62,7 @@
     let sortConfig = { key: 'data_ajuste', direction: 'desc' };
 
     let modoForm = 'novo'; 
-    let registroEmEdicaoId = null; // Variável de controle para edição
+    let registroEmEdicaoId = null;
     let formFoiAlterado = false;
 
     btnRefresh.addEventListener('click', async () => {
@@ -71,8 +72,43 @@
         icon.classList.remove('lucide-spin');
     });
 
+    async function verificarAutoAbrirNovoAjuste() {
+        const almoxId = window.ajusteEstoqueAutoAbrirAlmoxId;
+        if (!almoxId) return;
+        window.ajusteEstoqueAutoAbrirAlmoxId = null;
+
+        if (!permissoesAcesso.create) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para criar lotes de ajuste.', 'error');
+            return;
+        }
+
+        await abrirFormulario('novo', null);
+        window.selecAlmoxAjuste(almoxId);
+    }
+
+    document.addEventListener('telaRestaurada', (e) => {
+        if (e.detail?.rota === 'ajuste_estoque') {
+            verificarAutoAbrirNovoAjuste();
+        }
+    });
+
     async function carregarDadosIniciais() {
         try {
+            permissoesAcesso = {
+                view: window.temPermissao('ajuste_estoque', 'view'),
+                create: window.temPermissao('ajuste_estoque', 'create'),
+                edit: window.temPermissao('ajuste_estoque', 'edit'),
+                delete: window.temPermissao('ajuste_estoque', 'delete')
+            };
+
+            if (!permissoesAcesso.view) {
+                moduloContent.innerHTML = `<div style="text-align: center; padding: 4rem; color: #ef4444;"><i data-lucide="shield-alert" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i><h2 style="font-weight: 800;">Acesso Negado</h2><p>Você não tem permissão para visualizar o Ajuste de Estoque.</p></div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            if (btnNovoAjuste) btnNovoAjuste.style.display = permissoesAcesso.create ? 'flex' : 'none';
+
             const { data: { session } } = await window.db.auth.getSession();
             if (!session) return;
             usuarioLogadoId = session.user.id;
@@ -91,6 +127,7 @@
             meusAlmoxarifadosIds = (isAdmin || isGestor) ? almoxarifados.map(a => a.id) : acessosDiretos;
 
             await buscarAjustes();
+            await verificarAutoAbrirNovoAjuste();
         } catch (e) { console.error(e); }
     }
 
@@ -98,7 +135,6 @@
         tbodyAjustes.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>`;
         lucide.createIcons();
 
-        // CORREÇÃO: Agora puxamos o mac e o numero_serie nas coletas
         let query = window.db.from('ajustes_estoque')
             .select(`*, almoxarifado:almoxarifados(codigo, descricao), usuario:usuarios!usuario_supervisor_id(nome_completo), coletas:coletas_mac(id, mac, numero_serie)`)
             .order('created_at', { ascending: false });
@@ -207,7 +243,6 @@
                     const d = new Date(item.data_ajuste + 'T12:00:00'); return d.toISOString().split('T')[0] === f.valor; 
                 }
                 
-                // CORREÇÃO: Lógica de pesquisa dentro dos itens filhos (MACs)
                 if (f.campo === 'mac') {
                     const searchVal = f.valor.toUpperCase();
                     const matchFn = c => {
@@ -234,16 +269,16 @@
         tbodyAjustes.innerHTML = lista.map(r => {
             const dataFmt = r.data_ajuste ? new Date(r.data_ajuste + 'T12:00:00').toLocaleDateString('pt-BR') : '-';
             
-            // 1. Visualizar
             let btnHtml = `<button class="btn-acao btn-ver" data-id="${r.id}" title="Visualizar" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="eye" style="width:16px;"></i></button>`;
-            
-            // 2. Histórico
             btnHtml += `<button class="btn-acao btn-historico" data-id="${r.id}" title="Auditoria/Histórico" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="rotate-ccw" style="width:16px;"></i></button>`;
 
-            // 3. Editar e 4. Excluir (se tiver permissão)
             if (isGestor || r.usuario_supervisor_id === usuarioLogadoId) {
-                btnHtml += `<button class="btn-acao btn-editar" data-id="${r.id}" title="Editar Ajuste" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="edit-3" style="width:16px;"></i></button>`;
-                btnHtml += `<button class="btn-acao btn-excluir" data-id="${r.id}" title="Excluir Lote Inteiro" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="trash-2" style="width:16px;"></i></button>`;
+                if (permissoesAcesso.edit) {
+                    btnHtml += `<button class="btn-acao btn-editar" data-id="${r.id}" title="Editar Ajuste" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="edit-3" style="width:16px;"></i></button>`;
+                }
+                if (permissoesAcesso.delete) {
+                    btnHtml += `<button class="btn-acao btn-excluir" data-id="${r.id}" title="Excluir Lote Inteiro" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="trash-2" style="width:16px;"></i></button>`;
+                }
             }
 
             return `
@@ -273,11 +308,13 @@
             } else if (btnAcao.classList.contains('btn-editar')) {
                 abrirFormulario('editar', id);
             } else if (btnAcao.classList.contains('btn-excluir')) {
+                if (!permissoesAcesso.delete) {
+                    window.appAlert('Acesso Negado', 'Você não tem permissão para excluir lotes de ajuste.', 'error');
+                    return;
+                }
                 const conf = await window.appConfirm('Excluir Lote de Ajuste', 'Deseja realmente apagar este Lote? Atenção: Os equipamentos dentro dele voltarão para a fila de PENDENTES.', 'danger');
                 if (conf) {
-                    // 1. Liberta os MACs
                     await window.db.from('coletas_mac').update({ ajuste_estoque_id: null, produto_patrimonio_erp: null, status: 'PENDENTE' }).eq('ajuste_estoque_id', id);
-                    // 2. Apaga o Ajuste Pai
                     await window.db.from('ajustes_estoque').delete().eq('id', id);
                     window.appAlert('Sucesso', 'Ajuste excluído e MACs revertidos.', 'success'); 
                     buscarAjustes();
@@ -291,7 +328,6 @@
         const btnAlmox = e.target.closest('#btn-busca-almox') || e.target.closest('#ajuste-almox-desc');
         if (btnAlmox && !inAlmoxDesc.readOnly) { abrirModalConsulta(); return; }
         
-        // Clique nos checkboxes da tabela dinâmica
         const chkItem = e.target.closest('.chk-mac-item');
         if (chkItem) {
             const tr = chkItem.closest('tr');
@@ -299,10 +335,9 @@
             if (chkItem.checked) {
                 inErp.disabled = false;
                 if (modoForm === 'novo') inErp.focus();
-                tr.style.background = '#f0fdf4'; // Destaca a linha
+                tr.style.background = '#f0fdf4';
             } else {
                 inErp.disabled = true;
-                // Se estiver no modo novo, limpa. Se for edição, mantém o valor original para o caso de querer remarcar
                 if (modoForm === 'novo') inErp.value = '';
                 tr.style.background = 'transparent';
             }
@@ -351,7 +386,13 @@
     });
 
     // ================= LÓGICA DO MODAL DE AJUSTE =================
-    btnNovoAjuste.addEventListener('click', () => abrirFormulario('novo', null));
+    btnNovoAjuste.addEventListener('click', () => {
+        if (!permissoesAcesso.create) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para criar lotes de ajuste.', 'error');
+            return;
+        }
+        abrirFormulario('novo', null);
+    });
     
     async function fecharModalAjuste() {
         if (formFoiAlterado && modoForm !== 'visualizar') {
@@ -364,6 +405,12 @@
     moduloContent.querySelector('#btn-fechar-ajuste').addEventListener('click', fecharModalAjuste);
 
     async function abrirFormulario(modo, id) {
+        const mapaModoPerm = { novo: 'create', editar: 'edit' };
+        if (mapaModoPerm[modo] && !permissoesAcesso[mapaModoPerm[modo]]) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para executar esta ação.', 'error');
+            return;
+        }
+
         modoForm = modo;
         registroEmEdicaoId = id;
         formFoiAlterado = false;
@@ -403,7 +450,7 @@
                 chkAllMacs.disabled = true;
                 montarFooterFormulario(false);
             } else if (modo === 'editar') {
-                inAlmoxDesc.readOnly = true; // Bloqueado para não perder a referência dos MACs vinculados
+                inAlmoxDesc.readOnly = true;
                 inIdEntrada.readOnly = false; inIdInventario.readOnly = false;
                 inDataAjuste.readOnly = false; inObs.readOnly = false;
                 btnBuscaAlmox.style.display = 'none';
@@ -464,7 +511,7 @@
                     <td style="padding: 0.6rem;">${mDesc}</td>
                     <td style="padding: 0.6rem;">${oDesc}</td>
                     <td style="padding: 0.4rem; background: #f0f9ff; border-left: 1px solid #bae6fd;">
-                        <input type="text" class="in-erp-id input-standard input-upper" placeholder="ID ERP..." value="${valErp}" ${disabledStr} style="width: 100%; border: 1px solid #7dd3fc; border-radius: 4px; padding: 4px 8px; font-weight: 800; color: var(--cnx-blue);">
+                        <input type="text" class="in-erp-id input-standard input-upper" placeholder="ID IXC..." value="${valErp}" ${disabledStr} style="width: 100%; border: 1px solid #7dd3fc; border-radius: 4px; padding: 4px 8px; font-weight: 800; color: var(--cnx-blue);">
                     </td>
                 </tr>`;
             } else {
@@ -511,7 +558,6 @@
         const chks = Array.from(moduloContent.querySelectorAll('.chk-mac-item:checked'));
         if (chks.length === 0) { window.appAlert("Atenção", "Selecione pelo menos um MAC na Aba 2 para vincular ao lote.", "warning"); return; }
 
-        // Valida e extrai os itens Marcados
         let macsParaAtualizar = [];
         for (let chk of chks) {
             const tr = chk.closest('tr');
@@ -524,7 +570,6 @@
             macsParaAtualizar.push({ id_coleta: chk.dataset.id, novo_id_erp: valErp });
         }
 
-        // Extrai os itens Desmarcados (para o caso de Edição)
         const unchks = Array.from(moduloContent.querySelectorAll('.chk-mac-item:not(:checked)'));
         let macsParaDesvincular = unchks.map(c => c.dataset.id);
 
@@ -546,11 +591,9 @@
             if (modoForm === 'novo') {
                 payload.usuario_supervisor_id = usuarioLogadoId;
                 
-                // 1. Cria o Lote
                 const { data: newAjuste, error: errAjuste } = await window.db.from('ajustes_estoque').insert([payload]).select('id').single();
                 if (errAjuste) throw errAjuste;
 
-                // 2. Vincula os MACs marcados
                 for (let item of macsParaAtualizar) {
                     await window.db.from('coletas_mac').update({
                         produto_patrimonio_erp: item.novo_id_erp,
@@ -559,11 +602,9 @@
                     }).eq('id', item.id_coleta);
                 }
             } else {
-                // 1. Atualiza o Lote
                 const { error: errAjuste } = await window.db.from('ajustes_estoque').update(payload).eq('id', registroEmEdicaoId);
                 if (errAjuste) throw errAjuste;
 
-                // 2. Atualiza os MACs que continuaram marcados
                 for (let item of macsParaAtualizar) {
                     await window.db.from('coletas_mac').update({
                         produto_patrimonio_erp: item.novo_id_erp,
@@ -572,7 +613,6 @@
                     }).eq('id', item.id_coleta);
                 }
 
-                // 3. Liberta os MACs que o utilizador desmarcou (reverte para PENDENTE)
                 if (macsParaDesvincular.length > 0) {
                     await window.db.from('coletas_mac').update({
                         produto_patrimonio_erp: null,

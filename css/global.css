@@ -37,3 +37,7 @@ body, html {
   from { opacity: 1; }
   to { opacity: 0; visibility: hidden; }
 }
+
+#janela-configuracoes .cfg-tab-btn {
+  display: none;
+}

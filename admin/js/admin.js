@@ -1,11 +1,85 @@
 // js/admin.js
+window.usuarioPermissoes = {};
+window.isAdminSistema = false;
+window.ajusteEstoqueAutoAbrirAlmoxId = null;
+
+window.temPermissao = function(modulo, acao = 'view') {
+    if (window.isAdminSistema) return true;
+    if (!modulo || modulo === 'dashboard') return true;
+
+    if (modulo === 'configuracoes') {
+        const modsCfg = ['cfg_conta', 'cfg_regras', 'cfg_buckets', 'cfg_cargos', 'cfg_auditoria', 'cfg_backup', 'cfg_sobre'];
+        return modsCfg.some(m => {
+            const p = window.usuarioPermissoes[m];
+            return p && Object.values(p).some(v => v === true);
+        });
+    }
+
+    return Boolean(window.usuarioPermissoes?.[modulo]?.[acao]);
+};
+
+async function carregarPermissoesUsuario(userId) {
+    try {
+        const { data } = await window.db
+            .from('usuarios')
+            .select('permissoes, cargos(nome, permissoes)')
+            .eq('id', userId)
+            .single();
+
+        const cargoNome = (data?.cargos?.nome || '').toUpperCase();
+        window.isAdminSistema = cargoNome === 'ADMINISTRADOR';
+
+        const permsCargo = (data?.cargos?.permissoes && typeof data.cargos.permissoes === 'object') ? data.cargos.permissoes : {};
+        const permsUser = (data?.permissoes && typeof data.permissoes === 'object') ? data.permissoes : {};
+
+        const combinadas = { ...permsCargo };
+        for (const [mod, acoes] of Object.entries(permsUser)) {
+            combinadas[mod] = { ...(permsCargo[mod] || {}), ...(acoes || {}) };
+        }
+
+        window.usuarioPermissoes = combinadas;
+    } catch (err) {
+        console.error('Erro ao carregar permissões do usuário:', err);
+        window.usuarioPermissoes = {};
+        window.isAdminSistema = false;
+    }
+}
+
+function aplicarPermissoesMenu() {
+    if (window.isAdminSistema) return;
+
+    const itensMenu = document.querySelectorAll('.top-header [onclick*="navegarPara("]');
+    itensMenu.forEach(el => {
+        const attr = el.getAttribute('onclick') || '';
+        const match = attr.match(/navegarPara\(\s*['"]([^'"]+)['"]\s*\)/);
+        if (!match) return;
+
+        const rota = match[1];
+        if (!window.temPermissao(rota, 'view')) {
+            el.style.display = 'none';
+        }
+    });
+
+    // Oculta menus dropdown que ficaram sem nenhuma opção visível
+    document.querySelectorAll('.top-header .has-dropdown').forEach(drop => {
+        const menu = drop.querySelector('.dropdown-menu');
+        if (!menu) return;
+        const opcoes = Array.from(menu.querySelectorAll('[onclick*="navegarPara("]'));
+        if (opcoes.length > 0 && opcoes.every(op => op.style.display === 'none')) {
+            drop.style.display = 'none';
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     lucide.createIcons();
     try {
         const { data: { session }, error } = await window.db.auth.getSession();
         if (error || !session) { window.location.replace('../index.html'); return; }
+        await carregarPermissoesUsuario(session.user.id);
+        aplicarPermissoesMenu();
         carregarPerfilRodape(session.user.id);
-        carregarFiltroAlmoxarifados(session.user.id);
+        await carregarFiltroAlmoxarifados(session.user.id);
         navegarPara('dashboard');
     } catch (err) { window.location.replace('../index.html'); }
 });
@@ -151,6 +225,225 @@ function atualizarLabelFiltro() {
         detail: { selecionados: window.almoxarifadosSelecionados }
     }));
 }
+
+// ================= PAINEL DE PENDÊNCIAS NA TELA INICIAL =================
+async function carregarPainelPendenciasHome() {
+    const welcome = document.getElementById('dashboard-welcome');
+    if (!welcome || !window.db) return;
+
+    const podeAjusteMac = window.temPermissao('ajuste_estoque', 'view');
+    const podeRequisicoes = window.temPermissao('requisicoes', 'view');
+
+    // Se o usuário não tem acesso a nenhum dos dois módulos, não monta nem exibe o painel
+    if (!podeAjusteMac && !podeRequisicoes) {
+        document.getElementById('painel-pendencias-home')?.classList.remove('visivel');
+        return;
+    }
+
+    let painel = document.getElementById('painel-pendencias-home');
+    if (!painel) {
+        welcome.insertAdjacentHTML('beforeend', `
+            <aside id="painel-pendencias-home" class="painel-pendencias-esq" aria-label="Pendências Operacionais">
+                <div class="painel-pend-topo">
+                    <div class="painel-pend-titulo">
+                        <i data-lucide="bell-ring"></i>
+                        <span>Pendências Operacionais</span>
+                    </div>
+                    <button type="button" id="btn-refresh-pendencias-home" class="painel-pend-refresh" title="Atualizar pendências">
+                        <i data-lucide="refresh-cw" class="refresh-icon"></i>
+                    </button>
+                </div>
+
+                <div id="secao-mac-pendencias-home" class="painel-pend-secao">
+                    <div class="painel-pend-sub">
+                        <span>Ajustes MAC Pendentes</span>
+                        <span id="badge-qtd-mac-pendentes" class="painel-pend-badge laranja">0</span>
+                    </div>
+                    <div id="lista-mac-pendentes-home" class="painel-pend-lista">
+                        <div class="painel-pend-vazio">Carregando...</div>
+                    </div>
+                </div>
+
+                <div id="secao-req-pendencias-home" class="painel-pend-secao">
+                    <div class="painel-pend-sub">
+                        <span>Req. Aguardando Aprovação / Envio</span>
+                        <span id="badge-qtd-req-pendencias" class="painel-pend-badge azul">0</span>
+                    </div>
+                    <div id="lista-req-pendencias-home" class="painel-pend-lista">
+                        <div class="painel-pend-vazio">Carregando...</div>
+                    </div>
+                </div>
+            </aside>
+        `);
+        painel = document.getElementById('painel-pendencias-home');
+
+        painel.querySelector('#btn-refresh-pendencias-home')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const icon = painel.querySelector('#btn-refresh-pendencias-home .refresh-icon');
+            if (icon) icon.classList.add('lucide-spin');
+            carregarPainelPendenciasHome().finally(() => {
+                if (icon) icon.classList.remove('lucide-spin');
+            });
+        });
+
+        painel.addEventListener('click', (e) => {
+            const card = e.target.closest('[data-abrir-modulo]');
+            if (!card) return;
+            const mod = card.dataset.abrirModulo;
+            const almoxId = card.dataset.almoxId || null;
+
+            if (mod === 'ajuste_estoque' && almoxId) {
+                window.ajusteEstoqueAutoAbrirAlmoxId = almoxId;
+            }
+
+            painel.classList.remove('visivel');
+            navegarPara(mod);
+        });
+    }
+
+    const secaoMac = painel.querySelector('#secao-mac-pendencias-home');
+    const secaoReq = painel.querySelector('#secao-req-pendencias-home');
+    const elMacLista = painel.querySelector('#lista-mac-pendentes-home');
+    const elReqLista = painel.querySelector('#lista-req-pendencias-home');
+    const elMacQtd = painel.querySelector('#badge-qtd-mac-pendentes');
+    const elReqQtd = painel.querySelector('#badge-qtd-req-pendencias');
+
+    if (secaoMac) secaoMac.style.display = podeAjusteMac ? 'flex' : 'none';
+    if (secaoReq) secaoReq.style.display = podeRequisicoes ? 'flex' : 'none';
+
+    try {
+        const { data: { session } } = await window.db.auth.getSession();
+        if (!session) {
+            painel.classList.remove('visivel');
+            return;
+        }
+
+        const uid = session.user.id;
+        const [{ data: user }, { data: vincs }] = await Promise.all([
+            window.db.from('usuarios').select('acesso_todos_almoxarifados, cargos(nome)').eq('id', uid).single(),
+            window.db.from('usuario_almoxarifados').select('almoxarifado_id').eq('usuario_id', uid)
+        ]);
+
+        const cargoUpper = String(user?.cargos?.nome || '').toUpperCase();
+        const isGestor = cargoUpper === 'ADMINISTRADOR' || cargoUpper.includes('SUPERVISOR') || !!user?.acesso_todos_almoxarifados;
+
+        let almoxIds = (vincs || []).map(v => v.almoxarifado_id);
+        if (Array.isArray(window.almoxarifadosSelecionados) && window.almoxarifadosSelecionados.length > 0) {
+            almoxIds = isGestor
+                ? [...window.almoxarifadosSelecionados]
+                : almoxIds.filter(id => window.almoxarifadosSelecionados.includes(id));
+        }
+
+        const filtroRestrito = !isGestor || (Array.isArray(window.almoxarifadosSelecionados) && window.almoxarifadosSelecionados.length > 0);
+        let listaMac = [];
+        let listaReq = [];
+
+        // 1. Ajustes MAC pendentes (somente se tiver permissão)
+        if (podeAjusteMac && (!filtroRestrito || almoxIds.length > 0)) {
+            let qMac = window.db
+                .from('coletas_mac')
+                .select('id, almoxarifado_id, almoxarifado:almoxarifados(codigo, descricao)')
+                .eq('status', 'PENDENTE');
+
+            if (filtroRestrito) qMac = qMac.in('almoxarifado_id', almoxIds);
+            const { data: macs } = await qMac;
+            listaMac = macs || [];
+        }
+
+        // 2. Requisições aguardando aprovação ou envio (somente se tiver permissão)
+        if (podeRequisicoes && (!filtroRestrito || almoxIds.length > 0)) {
+            let qReq = window.db
+                .from('requisicoes')
+                .select('id, codigo, status, almoxarifado_requisitante_id, almoxarifado_abastecedor_id, requisitante:almoxarifados!almoxarifado_requisitante_id(codigo, descricao)')
+                .in('status', ['PENDENTE', 'APROVADA'])
+                .order('codigo', { ascending: false })
+                .limit(25);
+
+            if (filtroRestrito) {
+                const idsFmt = almoxIds.map(id => `"${id}"`).join(',');
+                qReq = qReq.or(`almoxarifado_requisitante_id.in.(${idsFmt}),almoxarifado_abastecedor_id.in.(${idsFmt})`);
+            }
+            const { data: reqs } = await qReq;
+            listaReq = reqs || [];
+        }
+
+        const totalPendencias = listaMac.length + listaReq.length;
+        if (totalPendencias === 0 || idAtual !== 'dashboard') {
+            painel.classList.remove('visivel');
+            return;
+        }
+
+        if (podeAjusteMac) {
+            elMacQtd.innerText = listaMac.length;
+
+            const mapaAlmoxMac = {};
+            listaMac.forEach(m => {
+                const key = String(m.almoxarifado_id || 'sem-almox');
+                if (!mapaAlmoxMac[key]) {
+                    const desc = m.almoxarifado
+                        ? `${m.almoxarifado.codigo} - ${m.almoxarifado.descricao}`
+                        : 'Almoxarifado não identificado';
+                    mapaAlmoxMac[key] = {
+                        almoxarifado_id: m.almoxarifado_id,
+                        descricao: desc,
+                        qtd: 0
+                    };
+                }
+                mapaAlmoxMac[key].qtd += 1;
+            });
+
+            const gruposMac = Object.values(mapaAlmoxMac).sort((a, b) =>
+                b.qtd - a.qtd || a.descricao.localeCompare(b.descricao, 'pt-BR', { sensitivity: 'base' })
+            );
+
+            elMacLista.innerHTML = gruposMac.length === 0
+                ? `<div class="painel-pend-vazio">Nenhum MAC pendente.</div>`
+                : gruposMac.map(g => {
+                    const rotuloQtd = g.qtd === 1 ? '1 REGISTRO' : `${g.qtd} REGISTROS`;
+                    return `
+                        <div class="painel-pend-item" data-abrir-modulo="ajuste_estoque" data-almox-id="${g.almoxarifado_id || ''}">
+                            <div class="painel-pend-item-topo">
+                                <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:195px;" title="${g.descricao}">${g.descricao}</span>
+                                <span style="color:#c2410c; flex-shrink:0;">${rotuloQtd}</span>
+                            </div>
+                            <div class="painel-pend-item-sub">Clique para iniciar novo ajuste</div>
+                        </div>
+                    `;
+                }).join('');
+        }
+
+        if (podeRequisicoes) {
+            elReqQtd.innerText = listaReq.length;
+
+            elReqLista.innerHTML = listaReq.length === 0
+                ? `<div class="painel-pend-vazio">Nenhuma requisição pendente.</div>`
+                : listaReq.map(r => {
+                    const cod = String(r.codigo || '').padStart(6, '0');
+                    const etapa = r.status === 'PENDENTE' ? 'AGUARD. APROVAÇÃO' : 'AGUARD. ENVIO';
+                    const solicitante = r.requisitante ? `${r.requisitante.codigo} - ${r.requisitante.descricao}` : '-';
+                    return `
+                        <div class="painel-pend-item" data-abrir-modulo="requisicoes">
+                            <div class="painel-pend-item-topo">
+                                <span>REQ #${cod}</span>
+                                <span style="color:#0369a1;">${etapa}</span>
+                            </div>
+                            <div class="painel-pend-item-sub" title="Solicitante: ${solicitante}">${solicitante}</div>
+                        </div>
+                    `;
+                }).join('');
+        }
+
+        painel.classList.add('visivel');
+        if (window.lucide) lucide.createIcons();
+    } catch (err) {
+        console.error('Erro ao carregar painel de pendências:', err);
+        painel.classList.remove('visivel');
+    }
+}
+
+document.addEventListener('filtroAlmoxarifadosAlterado', () => {
+    if (idAtual === 'dashboard') carregarPainelPendenciasHome();
+});
 
 async function fazerLogout() {
     const conf = await window.appConfirm(
@@ -298,7 +591,6 @@ window.abrirHistorico = async function(tabela, registroId) {
                 const { data: logsDeletados } = await window.db.from('logs_auditoria').select('registro_id').eq('tabela', 'emprestimo_itens').eq('acao', 'DELETE').ilike(`dados_anteriores->>emprestimo_id`, registroId);
                 if (logsDeletados) idsFilhos = [...idsFilhos, ...logsDeletados.map(l => l.registro_id)];
             }
-            // NOVO: Busca MACs amarrados ou desvinculados
             else if (tabela === 'ajustes_estoque') {
                 const { data: itens } = await window.db.from('coletas_mac').select('id').eq('ajuste_estoque_id', registroId);
                 if (itens) idsFilhos = [...idsFilhos, ...itens.map(i => i.id)];
@@ -427,11 +719,13 @@ function formatarDadosLog(antigos, novos, tabelaOrigem = null) {
         'ativo': 'Ativo',
         'acesso_todos_almoxarifados': 'Acesso a Todos os Almoxarifados',
         'historico_acessos': 'Acessos e Permissões',
-        'permissoes': 'Permissões do Cargo'
+        'permissoes': 'Permissões do Usuário'
     };
 
-    const mapaTelas = {};
-    const mapaAcoes = {};
+    const mapaTelas = { mobile: 'App Mobile (PWA)' };
+    const mapaAcoes = {
+        mobile: { acessar: 'Acessar App Mobile', coleta_mac: 'Coleta de MAC', requisicoes: 'Requisições' }
+    };
     if (typeof menuEstrutura !== 'undefined') {
         Object.values(menuEstrutura).forEach(telas => {
             telas.forEach(t => {
@@ -679,7 +973,6 @@ window.configurarOrdenacaoTabela = function(containerEl, sortConfig, callbackAtu
                 sortConfig.direction = 'asc'; 
             }
             
-            // Reseta todas as setas de forma segura (procura i em qualquer profundidade do th)
             containerEl.querySelectorAll('.sort-col').forEach(el => {
                 const icone = el.querySelector('i');
                 if (icone) {
@@ -689,7 +982,6 @@ window.configurarOrdenacaoTabela = function(containerEl, sortConfig, callbackAtu
                 }
             });
             
-            // Acende a seta da coluna atual
             const iconeAtual = e.currentTarget.querySelector('i');
             if (iconeAtual) {
                 iconeAtual.setAttribute('data-lucide', sortConfig.direction === 'asc' ? 'chevron-up' : 'chevron-down');
@@ -885,7 +1177,6 @@ function renderizarSidebar() {
         if (itemsHtml) html += `<div class="sidebar-category">${cat}</div>${itemsHtml}`;
     }
 
-    // Garante que a tela de Configurações apareça quando minimizada
     if (janelasAbertas['configuracoes'] && idAtual !== 'configuracoes') {
         html += `
             <div class="sidebar-category">Sistema</div>
@@ -909,14 +1200,19 @@ function renderizarSidebar() {
 
 async function navegarPara(rota) {
     document.querySelectorAll('.dropdown-menu').forEach(el => el.classList.remove('show'));
-    if (rota === idAtual) return; 
+    if (rota === idAtual) return;
 
-    // Ocultar a janela atual
+    if (rota !== 'dashboard' && !window.temPermissao(rota, 'view')) {
+        window.appAlert('Acesso Negado', 'Você não tem permissão para acessar esta tela.', 'error');
+        return;
+    }
+
+    document.getElementById('painel-pendencias-home')?.classList.remove('visivel');
+
     if (idAtual && idAtual !== 'dashboard') {
         const frameAtual = document.getElementById('janela-' + idAtual);
         if (frameAtual) {
             frameAtual.classList.add('minimized');
-            // Guardar o ID do timeout para podermos cancelar se o utilizador clicar rápido
             timeoutJanelas[idAtual] = setTimeout(() => { 
                 if(frameAtual.classList.contains('minimized')) frameAtual.style.display = 'none'; 
             }, 300); 
@@ -929,18 +1225,18 @@ async function navegarPara(rota) {
     if (rota === 'dashboard') {
         document.body.classList.remove('compact-mode');
         appContentInner.innerHTML = `
-            <div id="dashboard-welcome" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#64748b;">
+            <div id="dashboard-welcome" style="position:relative; width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#64748b;">
                 <img src="../assets/imagens/Logo.png" alt="Logo" style="width:80px; margin-bottom:1rem; opacity:0.5; filter:grayscale(1);">
                 <h2>Bem-vindo ao Smart CNX</h2>
                 <p>Selecione uma opção no menu acima para começar.</p>
             </div>
         `;
-        // Quando volta ao dashboard, garante que todas as janelas abertas estão escondidas no DOM
         for (const r in janelasAbertas) {
             appContentInner.appendChild(janelasAbertas[r].node);
             janelasAbertas[r].node.style.display = 'none';
         }
         renderizarSidebar();
+        carregarPainelPendenciasHome();
         return;
     }
     
@@ -950,18 +1246,15 @@ async function navegarPara(rota) {
     if (dashContent) dashContent.remove();
 
     if (janelasAbertas[rota]) {
-        // Cancelar qualquer ordem de ocultação pendente para esta janela
         if (timeoutJanelas[rota]) clearTimeout(timeoutJanelas[rota]);
         
         const f = janelasAbertas[rota].node;
-        // Garantir que ela está no DOM (pode ter sido limpa pelo dashboard)
         if (!f.parentNode) appContentInner.appendChild(f);
         
         f.style.display = 'flex'; 
         f.classList.remove('maximized');
         janelasAbertas[rota].isMaximized = false;
         
-        // Forçar um pequeno delay para a animação do CSS pegar o display:flex
         setTimeout(() => { f.classList.remove('minimized'); }, 10);
         renderizarSidebar();
         
@@ -970,7 +1263,6 @@ async function navegarPara(rota) {
         return;
     }
 
-    // Criar nova janela
     const currentFrame = document.createElement('div');
     currentFrame.id = `janela-${rota}`;
     currentFrame.className = `window-frame`; 

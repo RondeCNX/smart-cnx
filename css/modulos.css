@@ -16,13 +16,21 @@
 .modulo-header p { font-size: 0.65rem; color: #64748b; text-transform: uppercase; font-weight: 600; margin-top: 0.2rem; margin-bottom: 0; }
 
 .btn-novo-registro {
+    display: none;
     background: var(--cnx-blue, #002B5B); color: white; border: none; padding: 0.4rem 0.8rem; 
-    border-radius: 6px; font-weight: 700; font-size: 0.8rem; display: flex; 
+    border-radius: 6px; font-weight: 700; font-size: 0.8rem; 
     align-items: center; gap: 8px; cursor: pointer; transition: background 0.2s;
 }
 .btn-novo-registro:hover { background: var(--cnx-blue-hover, #001B3A); }
 .btn-novo-registro div { background: rgba(255,255,255,0.1); padding: 3px; border-radius: 4px; display: flex; }
 .btn-novo-registro i { width: 14px; height: 14px; color: var(--cnx-orange, #F26522); }
+
+#btn-nova-req,
+#btn-novo-emp,
+#btn-nova-coleta,
+#btn-novo-ajuste {
+    display: none;
+}
 
 /* Barra de Filtros */
 .filter-bar {

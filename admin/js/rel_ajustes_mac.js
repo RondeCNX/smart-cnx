@@ -64,7 +64,7 @@
 
             const { data: user } = await window.db
                 .from('usuarios')
-                .select('nome_completo, acesso_todos_almoxarifados, cargos(nome, permissoes)')
+                .select('nome_completo, acesso_todos_almoxarifados, cargos(nome)')
                 .eq('id', usuarioLogadoId)
                 .single();
 
@@ -73,13 +73,10 @@
             isAdmin = cargoUpper === 'ADMINISTRADOR';
             acessoTodos = isAdmin || !!user?.acesso_todos_almoxarifados;
 
-            if (isAdmin) {
-                permissoesAcesso = { view: true, export: true };
-            } else if (user?.cargos?.permissoes?.rel_ajustes_mac) {
-                permissoesAcesso = user.cargos.permissoes.rel_ajustes_mac;
-            } else {
-                permissoesAcesso = { view: true, export: true };
-            }
+            permissoesAcesso = {
+                view: window.temPermissao('rel_ajustes_mac', 'view'),
+                export: window.temPermissao('rel_ajustes_mac', 'export')
+            };
 
             if (!permissoesAcesso.view) {
                 moduloContent.innerHTML = `<div style="text-align: center; padding: 4rem; color: #ef4444;"><i data-lucide="shield-alert" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i><h2 style="font-weight: 800;">Acesso Negado</h2><p>Você não tem permissão para visualizar o Relatório de Ajustes de MAC.</p></div>`;
@@ -420,6 +417,12 @@
 
     // ================= EXPORTAÇÃO PDF =================
     async function exportarPDF() {
+
+        if (!permissoesAcesso.export) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
+            return;
+        }
+
         modalExport.style.display = 'none';
         if (!window.jspdf) {
             window.appAlert('Erro', 'Biblioteca PDF indisponível.', 'error');
@@ -530,6 +533,12 @@
 
     // ================= EXPORTAÇÃO EXCEL (CSV) =================
     function exportarCSV() {
+
+        if (!permissoesAcesso.export) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
+            return;
+        }
+
         modalExport.style.display = 'none';
 
         const cabecalho = ['Código Ajuste', 'Data', 'Almoxarifado', 'Equipamento', 'MAC (GPON)', 'Nº de Série', 'Patrimônio ERP', 'Status', 'Responsável Registro', 'Observações'];
@@ -583,6 +592,10 @@
     });
 
     btnGerarRelatorio.addEventListener('click', () => {
+        if (!permissoesAcesso.export) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
+            return;
+        }
         if (dadosFiltrados.length === 0) {
             window.appAlert('Atenção', 'Nenhum ajuste encontrado para os filtros aplicados.', 'warning');
             return;

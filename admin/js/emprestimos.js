@@ -41,6 +41,8 @@
         lucide.createIcons();
     }
 
+
+    let permissoesAcesso = { view: false, create: false, edit: false, return: false, delete: false };
     let filtrosAtivos = [];
     let sortConfig = { key: 'codigo', direction: 'desc' };
 
@@ -141,6 +143,22 @@
     // ================= CARGA DE DADOS =================
     async function carregarDadosIniciais() {
         try {
+            permissoesAcesso = {
+                view: window.temPermissao('emprestimos', 'view'),
+                create: window.temPermissao('emprestimos', 'create'),
+                edit: window.temPermissao('emprestimos', 'edit'),
+                return: window.temPermissao('emprestimos', 'return'),
+                delete: window.temPermissao('emprestimos', 'delete')
+            };
+
+            if (!permissoesAcesso.view) {
+                moduloContent.innerHTML = `<div style="text-align: center; padding: 4rem; color: #ef4444;"><i data-lucide="shield-alert" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i><h2 style="font-weight: 800;">Acesso Negado</h2><p>Você não tem permissão para visualizar Empréstimos.</p></div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            if (btnNovoEmp) btnNovoEmp.style.display = permissoesAcesso.create ? 'flex' : 'none';
+
             const { data: { session } } = await window.db.auth.getSession();
             if (!session) return;
             usuarioLogadoId = session.user.id;
@@ -393,11 +411,13 @@
             }
 
             if (r.statusCalculado === 'ATIVO' || r.statusCalculado === 'ATRASADO' || r.statusCalculado === 'DEVOLUCAO PARCIAL') {
-                if (!r.temDevolucaoLancada || isGestor) {
+                if ((!r.temDevolucaoLancada || isGestor) && permissoesAcesso.edit) {
                     btnHtml += `<button class="btn-acao btn-editar" data-id="${r.id}" title="Editar Empréstimo" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="edit-3" style="width:16px;"></i></button>`;
                 }
-                btnHtml += `<button class="btn-acao btn-devolver" data-id="${r.id}" title="Efetuar Devolução" style="background:none; border:none; color:#16a34a; cursor:pointer;"><i data-lucide="log-in" style="width:16px;"></i></button>`;
-                if (isAdmin) {
+                if (permissoesAcesso.return) {
+                    btnHtml += `<button class="btn-acao btn-devolver" data-id="${r.id}" title="Efetuar Devolução" style="background:none; border:none; color:#16a34a; cursor:pointer;"><i data-lucide="log-in" style="width:16px;"></i></button>`;
+                }
+                if (permissoesAcesso.delete) {
                     btnHtml += `<button class="btn-acao btn-cancelar" data-id="${r.id}" title="Cancelar Empréstimo" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="x-circle" style="width:16px;"></i></button>`;
                 }
             }
@@ -440,6 +460,10 @@
             else if (btnAcao.classList.contains('btn-devolver')) abrirFormulario('devolver', id);
             else if (btnAcao.classList.contains('btn-historico')) { if(window.abrirHistorico) window.abrirHistorico('emprestimos', id); }
             else if (btnAcao.classList.contains('btn-cancelar')) {
+                if (!permissoesAcesso.delete) {
+                    window.appAlert('Acesso Negado', 'Você não tem permissão para cancelar empréstimos.', 'error');
+                    return;
+                }
                 let motivo = await window.appCustomPrompt('Cancelar Empréstimo', 'Por favor, informe o motivo do cancelamento:');
                 if (motivo === null) return; 
                 if (motivo.trim() === '') { window.appAlert('Atenção', 'Motivo é obrigatório.', 'warning'); return; }
@@ -620,7 +644,13 @@
     };
 
     // ================= FORMULÁRIO DE EMPRÉSTIMO =================
-    btnNovoEmp.addEventListener('click', () => abrirFormulario('novo', null));
+    btnNovoEmp.addEventListener('click', () => {
+        if (!permissoesAcesso.create) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para criar empréstimos.', 'error');
+            return;
+        }
+        abrirFormulario('novo', null);
+    });
     
     async function fecharModalEmprestimo() {
         if (formFoiAlterado && modoForm !== 'visualizar') {
@@ -633,6 +663,12 @@
     moduloContent.querySelector('#btn-fechar-emp').addEventListener('click', fecharModalEmprestimo);
 
     async function abrirFormulario(modo, empId) {
+        const mapaModoPerm = { novo: 'create', editar: 'edit', devolver: 'return' };
+        if (mapaModoPerm[modo] && !permissoesAcesso[mapaModoPerm[modo]]) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para executar esta ação.', 'error');
+            return;
+        }
+
         modoForm = modo;
         empEmEdicaoId = empId;
         itensEmpCache = [];

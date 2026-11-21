@@ -57,6 +57,8 @@
 
 
     // Variáveis Globais de Dados
+
+    let permissoesAcesso = { view: false, create: false, edit: false, delete: false };
     let usuariosRaw = []; 
     let usuariosCompletos = []; 
     let almoxarifados = [];
@@ -78,6 +80,21 @@
     // ================== CARGA DE DADOS ==================
     async function carregarDadosIniciais() {
         try {
+            permissoesAcesso = {
+                view: window.temPermissao('usuarios', 'view'),
+                create: window.temPermissao('usuarios', 'create'),
+                edit: window.temPermissao('usuarios', 'edit'),
+                delete: window.temPermissao('usuarios', 'delete')
+            };
+
+            if (!permissoesAcesso.view) {
+                moduloContent.innerHTML = `<div style="text-align: center; padding: 4rem; color: #ef4444;"><i data-lucide="shield-alert" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i><h2 style="font-weight: 800;">Acesso Negado</h2><p>Você não tem permissão para visualizar a Gestão de Usuários.</p></div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            if (btnNovo) btnNovo.style.display = permissoesAcesso.create ? 'flex' : 'none';
+
             const { data: { session } } = await window.db.auth.getSession();
             if (session) {
                 usuarioLogadoId = session.user.id;
@@ -290,6 +307,16 @@
             const statusBadge = u.ativo 
                 ? `<span style="background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 800;">ATIVO</span>`
                 : `<span style="background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 800;">INATIVO</span>`;
+
+            let botoesAcao = `<button class="btn-ver" data-id="${u.id}" title="Visualizar" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="eye" style="width: 14px;"></i></button>`;
+            botoesAcao += `<button class="btn-hist" data-id="${u.id}" title="Histórico" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="rotate-ccw" style="width: 14px;"></i></button>`;
+
+            if (permissoesAcesso.edit) {
+                botoesAcao += `<button class="btn-editar" data-id="${u.id}" title="Editar" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="edit" style="width: 14px;"></i></button>`;
+            }
+            if (permissoesAcesso.delete) {
+                botoesAcao += `<button class="btn-status" data-id="${u.id}" data-ativo="${u.ativo}" data-nome="${u.nome_completo}" title="Alterar Status" style="background:none; border:none; color:${u.ativo ? '#166534' : '#94a3b8'}; cursor:pointer;"><i data-lucide="toggle-right" style="width: 14px;"></i></button>`;
+            }
             
             return `
                 <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#fff7ed'" onmouseout="this.style.background='transparent'">
@@ -298,10 +325,7 @@
                     <td style="padding: 0.6rem 1.25rem; color: #64748b; font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px;" title="${u.almoxarifadosNomes}">${u.almoxarifadosNomes}</td>
                     <td style="padding: 0.6rem 1.25rem; text-align: center;">${statusBadge}</td>
                     <td style="padding: 0.6rem 1.25rem; text-align: center; display: flex; justify-content: center; gap: 8px;">
-                        <button class="btn-ver" data-id="${u.id}" title="Visualizar" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="eye" style="width: 14px;"></i></button>
-                        <button class="btn-hist" data-id="${u.id}" title="Histórico" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="rotate-ccw" style="width: 14px;"></i></button>
-                        <button class="btn-editar" data-id="${u.id}" title="Editar" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="edit" style="width: 14px;"></i></button>
-                        <button class="btn-status" data-id="${u.id}" data-ativo="${u.ativo}" data-nome="${u.nome_completo}" title="Alterar Status" style="background:none; border:none; color:${u.ativo ? '#166534' : '#94a3b8'}; cursor:pointer;"><i data-lucide="toggle-right" style="width: 14px;"></i></button>
+                        ${botoesAcao}
                     </td>
                 </tr>
             `;
@@ -358,6 +382,10 @@
     }
 
     btnNovo.addEventListener('click', () => {
+        if (!permissoesAcesso.create) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para criar usuários.', 'error');
+            return;
+        }
         modoEdicao = false; usuarioEmEdicaoId = null; avatarUrlSubmetido = null;
         inNome.value = ''; inEmail.value = ''; inSenha.value = ''; inCargo.value = '';
         chkTodosAlmox.checked = false; containerTabelaAlmox.style.display = 'block';
@@ -405,6 +433,10 @@
         }
 
         if (btnStatus) {
+            if (!permissoesAcesso.delete) {
+                window.appAlert('Acesso Negado', 'Você não tem permissão para inativar/ativar usuários.', 'error');
+                return;
+            }
             const id = btnStatus.dataset.id;
             const nome = btnStatus.dataset.nome;
             if (id === usuarioLogadoId && !isAdministrador) { 
@@ -431,6 +463,10 @@
         if (btnVer) {
             abrirModalEdicao(btnVer.dataset.id, true);
         } else if (btnEdit) {
+            if (!permissoesAcesso.edit) {
+                window.appAlert('Acesso Negado', 'Você não tem permissão para editar usuários.', 'error');
+                return;
+            }
             const id = btnEdit.dataset.id;
             if (id === usuarioLogadoId && !isAdministrador) { 
                 window.appAlert("Acesso Negado", "Apenas Administradores podem editar o próprio usuário.", "error"); 
@@ -472,7 +508,7 @@
             avatarNomeArquivo.style.display = 'none';
         }
 
-        renderizarTabelaPermissoes(usr.id_cargo, apenasLeitura);
+        renderizarTabelaPermissoes(usr.id_cargo, apenasLeitura, usr.permissoes || null);
         alternarModoLeitura(apenasLeitura);
         inSenha.closest('div').style.display = 'none'; 
         
@@ -489,6 +525,12 @@
 
     // Gravar Dados
     btnSalvar.addEventListener('click', async () => {
+
+        if ((modoEdicao && !permissoesAcesso.edit) || (!modoEdicao && !permissoesAcesso.create)) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para salvar alterações neste cadastro.', 'error');
+            return;
+        }
+
         if(!inNome.value || !inEmail.value || !inCargo.value) { 
             window.appAlert("Dados Incompletos", "Preencha todos os campos obrigatórios na aba Dados.", "warning"); 
             return; 
@@ -534,6 +576,7 @@
                 id_cargo: parseInt(inCargo.value),
                 acesso_todos_almoxarifados: chkTodosAlmox.checked,
                 avatar_url: avatarUrlSubmetido,
+                permissoes: permissoesParaSalvar,
                 historico_acessos: {
                     Cargo: cargoNome,
                     Almoxarifados: almoxNomes,
@@ -565,10 +608,6 @@
                     const { error: vincErr } = await window.db.from('usuario_almoxarifados').insert(almoxSelecionados);
                     if (vincErr) throw new Error("Erro ao gravar os vínculos de almoxarifado: " + vincErr.message);
                 }
-            }
-            
-            if (inCargo.value) {
-               await salvarPermissoesNoCargo(inCargo.value, permissoesParaSalvar);
             }
 
             window.appAlert("Sucesso", "O utilizador foi gravado com sucesso no sistema.", "success");
@@ -626,17 +665,34 @@
         containerTabelaAlmox.style.display = e.target.checked ? 'none' : 'block';
     });
 
-    inCargo.addEventListener('change', () => { renderizarTabelaPermissoes(inCargo.value, modoVisualizacao); });
+    inCargo.addEventListener('change', () => { renderizarTabelaPermissoes(inCargo.value, modoVisualizacao, null); });
 
-    function renderizarTabelaPermissoes(cargoId, apenasLeitura = false) {
+    function renderizarTabelaPermissoes(cargoId, apenasLeitura = false, permissoesUsuario = null) {
         if (!cargoId) { containerPermissoes.style.display = 'none'; avisoPermissoes.style.display = 'block'; return; }
         
         const cargo = cargos.find(c => c.id == cargoId);
         containerPermissoes.style.display = 'block'; 
         avisoPermissoes.style.display = 'none';
         
-        const estrutura = typeof menuEstrutura !== 'undefined' ? menuEstrutura : {};
-        const perms = cargo?.permissoes || {};
+        const estruturaBase = typeof menuEstrutura !== 'undefined' ? menuEstrutura : {};
+        const estrutura = {
+            ...estruturaBase,
+            'APLICATIVO MOBILE': [
+                {
+                    id: 'mobile',
+                    nome: 'App Mobile (PWA)',
+                    icone: 'smartphone',
+                    acoes: [
+                        { key: 'acessar', label: 'Acessar App Mobile' },
+                        { key: 'coleta_mac', label: 'Coleta de MAC' },
+                        { key: 'requisicoes', label: 'Requisições' }
+                    ]
+                }
+            ]
+        };
+
+        const permsCargo = cargo?.permissoes || {};
+        const perms = (permissoesUsuario && Object.keys(permissoesUsuario).length > 0) ? permissoesUsuario : permsCargo;
         
         const cbClass = apenasLeitura ? 'table-checkbox-readonly' : 'chk-perm table-checkbox';
         const cbAllClass = apenasLeitura ? 'table-checkbox-readonly' : 'chk-perm-all table-checkbox';
@@ -661,7 +717,7 @@
                     { key: 'delete', label: 'Inativar' }
                 ];
 
-                const pTela = perms[tela.id] || {};
+                const pTela = perms[tela.id] || permsCargo[tela.id] || {};
                 const todosMarcados = acoes.length > 0 && acoes.every(a => !!pTela[a.key]);
 
                 const acoesHtml = acoes.map(a => `

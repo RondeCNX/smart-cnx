@@ -52,6 +52,7 @@
         }
     });
 
+    let permissoesMobile = { acessar: false, coleta_mac: false, requisicoes: false };
     let usuario = null;
     let isAdmin = false;
     let almoxarifadosPermitidos = [];
@@ -85,6 +86,33 @@
     // Estado Requisição Form
     let reqFormItens = [];
     let reqFormItensOriginais = [];
+
+
+    //
+    function temPermissaoMobile(chave) {
+        if (isAdmin) return true;
+        return Boolean(permissoesMobile?.[chave]);
+    }
+
+    function aplicarPermissoesInterfaceMobile() {
+        const podeColeta = temPermissaoMobile('coleta_mac');
+        const podeReq = temPermissaoMobile('requisicoes');
+
+        document.querySelectorAll('#btn-menu-coleta, #btn-fab-coleta, [data-acao="coleta"], [data-view="coleta"]').forEach(el => {
+            if (el.id === 'view-coleta') return;
+            el.style.display = podeColeta ? '' : 'none';
+        });
+
+        document.querySelectorAll('#btn-menu-req, #btn-fab-nova-req, #btn-nova-req-mobile, [data-acao="requisicoes"], [data-view="requisicoes"]').forEach(el => {
+            if (el.id === 'view-requisicoes') return;
+            el.style.display = podeReq ? '' : 'none';
+        });
+
+        const fab = document.getElementById('btn-fab-acoes');
+        if (fab && !podeColeta && !podeReq) {
+            fab.style.display = 'none';
+        }
+    }
 
     // ================= POP-UPS PERSONALIZADOS =================
     function mAlert(titulo, msg) {
@@ -282,6 +310,15 @@
 
     async function navegarParaView(novaView, registrarHistorico = true) {
         if (novaView === viewAtual) return true;
+
+        if (novaView === 'coleta' && !temPermissaoMobile('coleta_mac')) {
+            await mAlert('Acesso Negado', 'Você não tem permissão para acessar a Coleta de MAC no mobile.');
+            return false;
+        }
+        if (novaView === 'requisicoes' && !temPermissaoMobile('requisicoes')) {
+            await mAlert('Acesso Negado', 'Você não tem permissão para acessar Requisições no mobile.');
+            return false;
+        }
 
         if (viewAtual === 'coleta' && coletaTemDadosPreenchidos()) {
             const msg = loteMac.length > 0
@@ -622,7 +659,7 @@
 
             const { data: user, error: userErr } = await window.db
                 .from('usuarios')
-                .select('id, nome_completo, email, avatar_url, acesso_todos_almoxarifados, cargos(nome, permissoes)')
+                .select('id, nome_completo, email, avatar_url, acesso_todos_almoxarifados, permissoes, cargos(nome, permissoes)')
                 .eq('id', session.user.id)
                 .single();
 
@@ -633,8 +670,28 @@
 
             usuario = user;
             isAdmin = usuario.cargos?.nome?.toUpperCase() === 'ADMINISTRADOR';
+
+            const permsCargoMobile = (usuario.cargos?.permissoes?.mobile && typeof usuario.cargos.permissoes.mobile === 'object')
+                ? usuario.cargos.permissoes.mobile
+                : {};
+            const permsUserMobile = (usuario.permissoes?.mobile && typeof usuario.permissoes.mobile === 'object')
+                ? usuario.permissoes.mobile
+                : {};
+
+            permissoesMobile = {
+                ...permsCargoMobile,
+                ...permsUserMobile
+            };
+
+            if (!isAdmin && !permissoesMobile.acessar) {
+                await mAlert('Acesso Negado', 'Seu usuário não possui permissão para acessar o Aplicativo Mobile.');
+                window.location.replace('../index.html');
+                return;
+            }
+
             preencherPerfil();
             carregarVersao();
+            aplicarPermissoesInterfaceMobile();
 
             const [resAlmox, resVinc, resProds] = await Promise.all([
                 window.db.from('almoxarifados').select('id, codigo, descricao, almoxarifado_abastecedor_id').order('descricao'),
@@ -657,7 +714,6 @@
                 almoxarifadosPermitidos = todosAlmoxarifados.filter(a => idsVinc.includes(a.id));
             }
 
-            // Pré-seleciona automaticamente caso o usuário tenha apenas 1 almoxarifado
             if (almoxarifadosPermitidos.length === 1) {
                 const unico = almoxarifadosPermitidos[0];
                 setPickerValue('col-almoxarifado', 'lbl-pick-col-almox', unico.id, `${unico.codigo} - ${unico.descricao}`, 'Toque para buscar almoxarifado...');
@@ -1026,6 +1082,11 @@
     document.getElementById('btn-refresh-req-mobile')?.addEventListener('click', carregarRequisicoesMobile);
 
     function abrirFormNovaRequisicao() {
+        if (!temPermissaoMobile('requisicoes')) {
+            mAlert('Acesso Negado', 'Você não tem permissão para criar requisições no mobile.');
+            return;
+        }
+
         document.getElementById('modal-req-titulo').innerText = 'Nova Requisição';
         document.getElementById('req-edit-id').value = '';
         document.getElementById('req-obs').value = '';

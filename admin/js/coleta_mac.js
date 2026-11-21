@@ -53,6 +53,8 @@
     const theadConsulta = moduloContent.querySelector('#thead-consulta-coleta');
     const tbodyConsulta = moduloContent.querySelector('#tbody-consulta-coleta');
 
+
+    let permissoesAcesso = { view: false, create: false, edit: false, delete: false };
     let usuarioLogadoId = null;
     let isAdmin = false;
     let isGestor = false;
@@ -78,6 +80,21 @@
 
     async function carregarDadosIniciais() {
         try {
+            permissoesAcesso = {
+                view: window.temPermissao('coleta_mac', 'view'),
+                create: window.temPermissao('coleta_mac', 'create'),
+                edit: window.temPermissao('coleta_mac', 'edit'),
+                delete: window.temPermissao('coleta_mac', 'delete')
+            };
+
+            if (!permissoesAcesso.view) {
+                moduloContent.innerHTML = `<div style="text-align: center; padding: 4rem; color: #ef4444;"><i data-lucide="shield-alert" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i><h2 style="font-weight: 800;">Acesso Negado</h2><p>Você não tem permissão para visualizar a Coleta de MAC.</p></div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            if (btnNovaColeta) btnNovaColeta.style.display = permissoesAcesso.create ? 'flex' : 'none';
+
             const { data: { session } } = await window.db.auth.getSession();
             if (!session) return;
             usuarioLogadoId = session.user.id;
@@ -253,15 +270,13 @@
             const dataFmt = new Date(r.data_coleta + 'T12:00:00').toLocaleDateString('pt-BR');
             
             let btnHtml = `<button class="btn-acao btn-ver" data-id="${r.id}" title="Visualizar" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="eye" style="width:16px;"></i></button>`;
-            
-            // Botão de Histórico Injetado
             btnHtml += `<button class="btn-acao btn-historico" data-id="${r.id}" title="Auditoria/Histórico" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="rotate-ccw" style="width:16px;"></i></button>`;
             
-            // Só edita ou exclui se estiver pendente
             if (r.status === 'PENDENTE') {
-                btnHtml += `<button class="btn-acao btn-editar" data-id="${r.id}" title="Editar Coleta" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="edit-3" style="width:16px;"></i></button>`;
-                
-                if (r.usuario_estoquista_id === usuarioLogadoId || isGestor) {
+                if (permissoesAcesso.edit) {
+                    btnHtml += `<button class="btn-acao btn-editar" data-id="${r.id}" title="Editar Coleta" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="edit-3" style="width:16px;"></i></button>`;
+                }
+                if ((r.usuario_estoquista_id === usuarioLogadoId || isGestor) && permissoesAcesso.delete) {
                     btnHtml += `<button class="btn-acao btn-excluir" data-id="${r.id}" title="Excluir Coleta" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="trash-2" style="width:16px;"></i></button>`;
                 }
             }
@@ -296,11 +311,14 @@
             else if (btnAcao.classList.contains('btn-editar')) {
                 abrirFormulario('editar', id);
             } 
-            // Ação do Histórico Injetada
             else if (btnAcao.classList.contains('btn-historico')) { 
                 if(window.abrirHistorico) window.abrirHistorico('coletas_mac', id); 
             } 
             else if (btnAcao.classList.contains('btn-excluir')) {
+                if (!permissoesAcesso.delete) {
+                    window.appAlert('Acesso Negado', 'Você não tem permissão para excluir coletas.', 'error');
+                    return;
+                }
                 const conf = await window.appConfirm('Excluir Registro', 'Deseja realmente apagar esta coleta permanentemente?', 'danger');
                 if (conf) {
                     await window.db.from('coletas_mac').delete().eq('id', id);
@@ -341,7 +359,13 @@
         });
     });
 
-    btnNovaColeta.addEventListener('click', () => abrirFormulario('novo', null));
+    btnNovaColeta.addEventListener('click', () => {
+        if (!permissoesAcesso.create) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para registrar novas coletas.', 'error');
+            return;
+        }
+        abrirFormulario('novo', null);
+    });
     
     async function fecharModalColeta() {
         if (formFoiAlterado && modoForm !== 'visualizar') {
@@ -377,6 +401,12 @@
     });
 
     async function abrirFormulario(modo, id) {
+        const mapaModoPerm = { novo: 'create', editar: 'edit' };
+        if (mapaModoPerm[modo] && !permissoesAcesso[mapaModoPerm[modo]]) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para executar esta ação.', 'error');
+            return;
+        }
+
         modoForm = modo;
         registroEmEdicaoId = id;
         formFoiAlterado = false;
@@ -386,7 +416,7 @@
         inProdutoId.value = ''; inProdutoCod.value = ''; inProdutoDesc.value = ''; 
         inMac.value = ''; inSerie.value = ''; inObs.value = '';
         badgeStatusModal.innerHTML = '';
-        tabBtns[0].click(); // Força iniciar na aba 1
+        tabBtns[0].click();
         
         inData.readOnly = false; inAlmoxDesc.readOnly = false; inOs.readOnly = false; inTipoOs.disabled = false;
         inProdutoCod.readOnly = false; inMac.readOnly = false; inSerie.readOnly = false; inObs.readOnly = false;

@@ -144,20 +144,24 @@
 
             const { data: user } = await window.db
                 .from('usuarios')
-                .select('nome_completo, email, avatar_url, cargos(nome, permissoes)')
+                .select('nome_completo, email, avatar_url, cargos(nome)')
                 .eq('id', usuarioLogadoId)
                 .single();
 
             nomeUsuarioLogado = user?.nome_completo || '';
             const cargoUpper = user?.cargos?.nome?.toUpperCase() || '';
-            const permsCargo = user?.cargos?.permissoes || {};
-            isAdmin = cargoUpper === 'ADMINISTRADOR';
+            isAdmin = cargoUpper === 'ADMINISTRADOR' || window.isAdminSistema;
             isGestor = isAdmin || cargoUpper.includes('SUPERVISOR');
 
-            const pode = (mod, acao) => isAdmin || !!permsCargo?.[mod]?.[acao];
+            const pode = (mod, acao) => {
+                if (typeof window.temPermissao === 'function') {
+                    return window.temPermissao(mod, acao);
+                }
+                return isAdmin;
+            };
 
             const mapaAbas = {
-                'cfg-tab-conta': pode('cfg_conta', 'view') || true,
+                'cfg-tab-conta': pode('cfg_conta', 'view') || pode('cfg_conta', 'edit') || true,
                 'cfg-tab-regras': pode('cfg_regras', 'view'),
                 'cfg-tab-buckets': pode('cfg_buckets', 'view'),
                 'cfg-tab-cargos': pode('cfg_cargos', 'view'),
@@ -171,27 +175,33 @@
                 if (mapaAbas[alvo] === false) btn.style.display = 'none';
             });
 
-            if (!pode('cfg_conta', 'edit') && !isAdmin) {
-                if (permsCargo?.cfg_conta && permsCargo.cfg_conta.edit === false) {
-                    moduloContent.querySelector('#btn-cfg-upload-avatar').style.display = 'none';
-                    moduloContent.querySelector('#btn-cfg-salvar-senha').style.display = 'none';
-                }
+            if (!pode('cfg_conta', 'edit')) {
+                const btnAv = moduloContent.querySelector('#btn-cfg-upload-avatar');
+                const btnSn = moduloContent.querySelector('#btn-cfg-salvar-senha');
+                if (btnAv) btnAv.style.display = 'none';
+                if (btnSn) btnSn.style.display = 'none';
             }
             if (!pode('cfg_regras', 'edit')) {
-                moduloContent.querySelector('#btn-cfg-salvar-regras').style.display = 'none';
+                const btnRg = moduloContent.querySelector('#btn-cfg-salvar-regras');
+                if (btnRg) btnRg.style.display = 'none';
             }
             if (!pode('cfg_buckets', 'edit')) {
-                moduloContent.querySelector('#btn-cfg-salvar-buckets').style.display = 'none';
+                const btnSb = moduloContent.querySelector('#btn-cfg-salvar-buckets');
+                if (btnSb) btnSb.style.display = 'none';
             }
             if (!pode('cfg_buckets', 'delete')) {
-                moduloContent.querySelector('#btn-cfg-limpar-buckets').style.display = 'none';
+                const btnLb = moduloContent.querySelector('#btn-cfg-limpar-buckets');
+                if (btnLb) btnLb.style.display = 'none';
             }
             if (!pode('cfg_auditoria', 'export')) {
-                moduloContent.querySelector('#btn-aud-gerar-rel').style.display = 'none';
+                const btnAr = moduloContent.querySelector('#btn-aud-gerar-rel');
+                if (btnAr) btnAr.style.display = 'none';
             }
             if (!pode('cfg_sobre', 'edit')) {
-                moduloContent.querySelector('#cfg-sobre-link').readOnly = true;
-                moduloContent.querySelector('#btn-cfg-salvar-link').style.display = 'none';
+                const inLk = moduloContent.querySelector('#cfg-sobre-link');
+                const btnLk = moduloContent.querySelector('#btn-cfg-salvar-link');
+                if (inLk) inLk.readOnly = true;
+                if (btnLk) btnLk.style.display = 'none';
             }
 
             // Minha Conta
@@ -438,12 +448,28 @@
         moduloContent.querySelector('#cfg-cargo-editor').style.display = 'block';
         moduloContent.querySelector('#cfg-cargo-nome').value = cargo.nome || '';
 
-        const estrutura = typeof menuEstrutura !== 'undefined' ? menuEstrutura : {};
+        const estruturaBase = typeof menuEstrutura !== 'undefined' ? menuEstrutura : {};
+        const estruturaCompleta = {
+            ...estruturaBase,
+            'Aplicativo Mobile': [
+                {
+                    id: 'mobile',
+                    nome: 'Acesso e Módulos Mobile',
+                    icone: 'smartphone',
+                    acoes: [
+                        { key: 'acessar', label: 'Acessar App Mobile' },
+                        { key: 'coleta_mac', label: 'Coleta de MAC' },
+                        { key: 'requisicoes', label: 'Requisições' }
+                    ]
+                }
+            ]
+        };
+
         const perms = cargo.permissoes || {};
         const tbody = moduloContent.querySelector('#cfg-cargo-perms-body');
 
         let html = '';
-        for (const [nomeMenu, telas] of Object.entries(estrutura)) {
+        for (const [nomeMenu, telas] of Object.entries(estruturaCompleta)) {
             html += `<tr style="background:#f1f5f9;"><td colspan="3" style="padding:0.45rem 0.85rem; font-size:0.68rem; font-weight:800; color:var(--cnx-orange); text-transform:uppercase;">${nomeMenu}</td></tr>`;
             telas.forEach(tela => {
                 const acoes = tela.acoes || [{ key: 'view', label: 'Visualizar' }, { key: 'create', label: 'Criar' }, { key: 'edit', label: 'Editar' }, { key: 'delete', label: 'Inativar' }];
@@ -998,9 +1024,12 @@
     }
 
     function renderizarGridBackup() {
+        const podeExportar = typeof window.temPermissao === 'function' ? window.temPermissao('cfg_backup', 'view') : isAdmin;
+        const podeImportar = typeof window.temPermissao === 'function' ? window.temPermissao('cfg_backup', 'create') : isAdmin;
+
         const grid = moduloContent.querySelector('#cfg-grid-backup-tabelas');
         grid.innerHTML = TABELAS_BACKUP.map(t => {
-            const permiteImportar = t.id !== 'logs_auditoria';
+            const permiteImportar = t.id !== 'logs_auditoria' && podeImportar;
             return `
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.7rem 0.9rem; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
@@ -1011,9 +1040,10 @@
                         </div>
                     </div>
                     <div style="display: flex; gap: 6px; flex-shrink: 0;">
+                        ${podeExportar ? `
                         <button class="btn-exp-tabela" data-tabela="${t.id}" title="Exportar ${t.nome} (CSV)" style="width: 32px; height: 32px; background: white; border: 1px solid #cbd5e1; color: var(--cnx-blue); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                             <i data-lucide="download" style="width: 15px;"></i>
-                        </button>
+                        </button>` : ''}
                         ${permiteImportar ? `
                         <button class="btn-imp-tabela" data-tabela="${t.id}" data-nome="${t.nome}" title="Importar dados para ${t.nome} (CSV)" style="width: 32px; height: 32px; background: #fff7ed; border: 1px solid #fdba74; color: #c2410c; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                             <i data-lucide="upload" style="width: 15px;"></i>
@@ -1030,6 +1060,10 @@
 
         grid.querySelectorAll('.btn-imp-tabela').forEach(btn => {
             btn.addEventListener('click', async () => {
+                if (!window.temPermissao('cfg_backup', 'create')) {
+                    window.appAlert('Acesso Negado', 'Você não tem permissão para importar dados.', 'error');
+                    return;
+                }
                 const conf1 = await window.appConfirm(
                     'Iniciar Importação de Dados',
                     `Você está prestes a importar dados para a tabela <strong>${btn.dataset.nome} (${btn.dataset.tabela})</strong>.<br><br>Linhas com ID existente serão atualizadas e linhas sem ID serão adicionadas. Deseja selecionar o arquivo CSV?`,
@@ -1045,6 +1079,10 @@
     }
 
     async function exportarTabelaCSV(tabela) {
+        if (!window.temPermissao('cfg_backup', 'view')) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para exportar tabelas.', 'error');
+            return;
+        }
         const { data, error } = await window.db.from(tabela).select('*');
         if (error) { window.appAlert('Erro', `Falha ao exportar ${tabela}: ${error.message}`, 'error'); return; }
         if (!data || data.length === 0) { window.appAlert('Aviso', `A tabela ${tabela} está vazia.`, 'warning'); return; }
@@ -1235,6 +1273,10 @@
     });
 
     moduloContent.querySelector('#btn-cfg-salvar-link').addEventListener('click', async () => {
+        if (typeof window.temPermissao === 'function' && !window.temPermissao('cfg_sobre', 'edit')) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para alterar o link da aplicação.', 'error');
+            return;
+        }
         const link = moduloContent.querySelector('#cfg-sobre-link').value.trim();
         if (!link) { window.appAlert('Atenção', 'Informe um link válido.', 'warning'); return; }
         try {

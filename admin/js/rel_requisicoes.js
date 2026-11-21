@@ -36,6 +36,7 @@
     const btnExportPdf = moduloContent.querySelector('#btn-export-pdf-rel-req');
     const btnExportCsv = moduloContent.querySelector('#btn-export-csv-rel-req');
 
+    let permissoesAcesso = { view: false, export: false };
     let usuarioLogadoId = null;
     let nomeUsuarioLogado = '';
     let isGestor = false;
@@ -47,6 +48,21 @@
     // ================= CARGA DE DADOS =================
     async function inicializar() {
         try {
+            permissoesAcesso = {
+                view: window.temPermissao('rel_requisicoes', 'view'),
+                export: window.temPermissao('rel_requisicoes', 'export')
+            };
+
+            if (!permissoesAcesso.view) {
+                moduloContent.innerHTML = `<div style="text-align: center; padding: 4rem; color: #ef4444;"><i data-lucide="shield-alert" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i><h2 style="font-weight: 800;">Acesso Negado</h2><p>Você não tem permissão para visualizar o Relatório de Requisições.</p></div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            if (btnAbrirExport && !permissoesAcesso.export) {
+                btnAbrirExport.style.display = 'none';
+            }
+
             const { data: { session } } = await window.db.auth.getSession();
             if (!session) return;
             usuarioLogadoId = session.user.id;
@@ -299,6 +315,12 @@
 
     // ================= EXPORTAÇÕES =================
     function exportarCSV() {
+
+        if (!permissoesAcesso.export) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
+            return;
+        }
+
         modalExport.style.display = 'none';
         if (linhasFiltradas.length === 0) {
             window.appAlert('Atenção', 'Não há dados para exportar com os filtros atuais.', 'warning');
@@ -319,6 +341,12 @@
     }
 
     async function exportarPDF() {
+
+        if (!permissoesAcesso.export) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
+            return;
+        }
+
         modalExport.style.display = 'none';
         if (!window.jspdf) { window.appAlert('Erro', 'Biblioteca PDF indisponível.', 'error'); return; }
         if (linhasFiltradas.length === 0) { window.appAlert('Atenção', 'Não há dados para gerar o PDF.', 'warning'); return; }
@@ -427,7 +455,14 @@
         icon.classList.remove('lucide-spin');
     });
 
-    btnAbrirExport.addEventListener('click', () => { modalExport.style.display = 'flex'; lucide.createIcons(); });
+    btnAbrirExport.addEventListener('click', () => {
+        if (!permissoesAcesso.export) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
+            return;
+        }
+        modalExport.style.display = 'flex';
+        lucide.createIcons();
+    });
     btnFecharExport.addEventListener('click', () => { modalExport.style.display = 'none'; });
     btnExportPdf.addEventListener('click', exportarPDF);
     btnExportCsv.addEventListener('click', exportarCSV);

@@ -64,28 +64,26 @@
     async function carregarPermissoes() {
         try {
             const { data: { session } } = await window.db.auth.getSession();
-            if (session) {
-                usuarioLogadoId = session.user.id;
-                const { data: user } = await window.db.from('usuarios').select('cargos(nome, permissoes)').eq('id', usuarioLogadoId).single();
-                
-                if (user?.cargos?.nome && user.cargos.nome.toUpperCase() === 'ADMINISTRADOR') {
-                    permissoesAcesso = { view: true, create: true, edit: true, delete: true };
-                } else if (user?.cargos?.permissoes?.produtos) {
-                    permissoesAcesso = user.cargos.permissoes.produtos;
-                }
-            }
-            
+            if (session) usuarioLogadoId = session.user.id;
+
+            permissoesAcesso = {
+                view: window.temPermissao('produtos', 'view'),
+                create: window.temPermissao('produtos', 'create'),
+                edit: window.temPermissao('produtos', 'edit'),
+                delete: window.temPermissao('produtos', 'delete')
+            };
+
             if (!permissoesAcesso.view) {
                 moduloContent.innerHTML = `<div style="text-align: center; padding: 4rem; color: #ef4444;"><i data-lucide="shield-alert" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i><h2 style="font-weight: 800;">Acesso Negado</h2><p>Você não tem permissão para visualizar o Cadastro de Produtos.</p></div>`;
                 lucide.createIcons();
                 return false;
             }
-            
-            if (!permissoesAcesso.create) btnNovo.style.display = 'none';
+
+            if (btnNovo) btnNovo.style.display = permissoesAcesso.create ? 'flex' : 'none';
             return true;
-        } catch (error) { 
-            console.error(error); 
-            return false; 
+        } catch (error) {
+            console.error(error);
+            return false;
         }
     }
 
@@ -319,6 +317,10 @@
     }
 
     btnNovo.addEventListener('click', () => {
+        if (!permissoesAcesso.create) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para criar produtos.', 'error');
+            return;
+        }
         modoEdicao = false; produtoEmEdicaoId = null;
         inCodigo.value = ''; inDescricao.value = ''; inTipo.value = ''; inUM.value = ''; inObs.value = '';
         
@@ -357,6 +359,10 @@
         }
 
         if (btnStatus) {
+            if (!permissoesAcesso.delete) {
+                window.appAlert('Acesso Negado', 'Você não tem permissão para inativar/ativar produtos.', 'error');
+                return;
+            }
             const id = btnStatus.dataset.id;
             const desc = btnStatus.dataset.desc;
             const isAtivo = btnStatus.dataset.ativo === 'true';
@@ -376,6 +382,10 @@
         if (btnVer) {
             abrirModalEdicao(btnVer.dataset.id, true);
         } else if (btnEdit) {
+            if (!permissoesAcesso.edit) {
+                window.appAlert('Acesso Negado', 'Você não tem permissão para editar produtos.', 'error');
+                return;
+            }
             abrirModalEdicao(btnEdit.dataset.id, false);
         }
     });
@@ -406,6 +416,12 @@
 
     // Gravar Dados
     btnSalvar.addEventListener('click', async () => {
+
+        if ((modoEdicao && !permissoesAcesso.edit) || (!modoEdicao && !permissoesAcesso.create)) {
+            window.appAlert('Acesso Negado', 'Você não tem permissão para salvar alterações neste cadastro.', 'error');
+            return;
+        }
+
         if(!inDescricao.value || !inTipo.value || !inUM.value) { 
             window.appAlert("Dados Incompletos", "Preencha todos os campos obrigatórios (*).", "warning"); 
             return; 
