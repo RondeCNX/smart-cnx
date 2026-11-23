@@ -55,6 +55,13 @@
     let dadosFiltrados = [];
     let filtrosAtivos = [];
 
+    const fmtCod = (cod) => {
+        if (typeof window.fmtCod === 'function') return window.fmtCod(cod);
+        if (cod === null || cod === undefined || cod === '') return '-';
+        const str = String(cod).trim();
+        return /^\d+$/.test(str) ? str.padStart(6, '0') : str;
+    };
+
     // ================= PERMISSÕES E CARGA INICIAL =================
     async function carregarPermissoes() {
         try {
@@ -74,8 +81,8 @@
             acessoTodos = isAdmin || !!user?.acesso_todos_almoxarifados;
 
             permissoesAcesso = {
-                view: window.temPermissao('rel_ajustes_mac', 'view'),
-                export: window.temPermissao('rel_ajustes_mac', 'export')
+                view: isAdmin || (typeof window.temPermissao === 'function' && window.temPermissao('rel_ajustes_mac', 'view')),
+                export: isAdmin || (typeof window.temPermissao === 'function' && window.temPermissao('rel_ajustes_mac', 'export'))
             };
 
             if (!permissoesAcesso.view) {
@@ -84,8 +91,8 @@
                 return false;
             }
 
-            if (!permissoesAcesso.export && btnGerarRelatorio) {
-                btnGerarRelatorio.style.display = 'none';
+            if (btnGerarRelatorio) {
+                btnGerarRelatorio.style.display = permissoesAcesso.export ? 'flex' : 'none';
             }
 
             return true;
@@ -112,7 +119,7 @@
                 : todosAtivos.filter(a => idsVinc.includes(String(a.id)));
 
             selAlmox.innerHTML = '<option value="">Selecione o Almoxarifado...</option>' +
-                almoxarifadosPermitidos.map(a => `<option value="${a.id}">${a.codigo} - ${a.descricao}</option>`).join('');
+                almoxarifadosPermitidos.map(a => `<option value="${a.id}">${fmtCod(a.codigo)} - ${a.descricao}</option>`).join('');
 
             let query = window.db
                 .from('ajustes_estoque')
@@ -120,7 +127,12 @@
                     *,
                     usuarios(nome_completo),
                     almoxarifado:almoxarifados(id, codigo, descricao),
-                    coletas:coletas_mac(id, mac, numero_serie, produto_patrimonio_erp, status, produtos(codigo, descricao))
+                    coletas:coletas_mac(
+                        id, mac, numero_serie, produto_patrimonio_erp, status,
+                        produtos(codigo, descricao),
+                        almoxarifado_origem:almoxarifados!almoxarifado_id(codigo, descricao),
+                        almoxarifado_destino:almoxarifados!almoxarifado_destino_id(codigo, descricao)
+                    )
                 `);
 
             if (!acessoTodos) {
@@ -144,7 +156,7 @@
                     ...r,
                     dataRef,
                     codigoFormatado: r.codigo ? String(r.codigo).padStart(6, '0') : String(r.id || '').slice(0, 8).toUpperCase(),
-                    almoxNome: r.almoxarifado ? `${r.almoxarifado.codigo} - ${r.almoxarifado.descricao}` : 'Desconhecido',
+                    almoxNome: r.almoxarifado ? `${fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : 'Desconhecido',
                     criadorNome: r.usuarios ? r.usuarios.nome_completo : 'Sistema',
                     statusUpper: String(r.status || 'PENDENTE').toUpperCase(),
                     coletasLista: coletasArr,
@@ -386,7 +398,8 @@
                 linhas.push({
                     codigo: r.codigoFormatado,
                     data: formatarDataBR(r.dataRef),
-                    almox: r.almoxNome,
+                    almoxOrigem: r.almoxNome,
+                    almoxDestino: r.almoxNome,
                     produto: '-',
                     mac: '-',
                     serie: '-',
@@ -397,11 +410,19 @@
                 });
             } else {
                 r.coletasLista.forEach(c => {
+                    const orig = c.almoxarifado_origem
+                        ? `${fmtCod(c.almoxarifado_origem.codigo)} - ${c.almoxarifado_origem.descricao}`
+                        : r.almoxNome;
+                    const dest = c.almoxarifado_destino
+                        ? `${fmtCod(c.almoxarifado_destino.codigo)} - ${c.almoxarifado_destino.descricao}`
+                        : r.almoxNome;
+
                     linhas.push({
                         codigo: r.codigoFormatado,
                         data: formatarDataBR(r.dataRef),
-                        almox: r.almoxNome,
-                        produto: c.produtos ? `${c.produtos.codigo} - ${c.produtos.descricao}` : '-',
+                        almoxOrigem: orig,
+                        almoxDestino: dest,
+                        produto: c.produtos ? `${fmtCod(c.produtos.codigo)} - ${c.produtos.descricao}` : '-',
                         mac: c.mac || '-',
                         serie: c.numero_serie || '-',
                         patrimonio: c.produto_patrimonio_erp || '-',
@@ -417,7 +438,6 @@
 
     // ================= EXPORTAÇÃO PDF =================
     async function exportarPDF() {
-
         if (!permissoesAcesso.export) {
             window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
             return;
@@ -481,11 +501,12 @@
             doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(70, 70, 70);
             doc.text(`Filtros: ${resumoFiltros}   |   Ajustes: ${dadosFiltrados.length}   |   MACs: ${linhasExport.length}`, margemEsq, 82);
 
-            const colunas = [["Ajuste", "Data", "Almoxarifado", "Equipamento", "MAC (GPON)", "Nº Série", "Patrimônio ERP", "Status"]];
+            const colunas = [["Ajuste", "Data", "Origem", "Destino", "Equipamento", "MAC (GPON)", "Nº Série", "Patrimônio ERP", "Status"]];
             const linhas = linhasExport.map(l => [
                 l.codigo,
                 l.data,
-                l.almox,
+                l.almoxOrigem,
+                l.almoxDestino,
                 l.produto,
                 l.mac,
                 l.serie,
@@ -498,17 +519,18 @@
                 head: colunas,
                 body: linhas,
                 theme: 'grid',
-                styles: { fontSize: 7.5, cellPadding: 4, valign: 'middle' },
+                styles: { fontSize: 7, cellPadding: 3.5, valign: 'middle' },
                 headStyles: { fillColor: [0, 43, 91], textColor: [255, 255, 255], fontStyle: 'bold' },
                 columnStyles: {
-                    0: { cellWidth: 52, halign: 'center' },
-                    1: { cellWidth: 58, halign: 'center' },
-                    2: { cellWidth: 125 },
-                    3: { cellWidth: 'auto' },
-                    4: { cellWidth: 95, halign: 'center' },
-                    5: { cellWidth: 90, halign: 'center' },
-                    6: { cellWidth: 75, halign: 'center' },
-                    7: { cellWidth: 65, halign: 'center', fontStyle: 'bold' }
+                    0: { cellWidth: 48, halign: 'center' },
+                    1: { cellWidth: 52, halign: 'center' },
+                    2: { cellWidth: 100 },
+                    3: { cellWidth: 100 },
+                    4: { cellWidth: 'auto' },
+                    5: { cellWidth: 85, halign: 'center' },
+                    6: { cellWidth: 80, halign: 'center' },
+                    7: { cellWidth: 68, halign: 'center' },
+                    8: { cellWidth: 58, halign: 'center', fontStyle: 'bold' }
                 },
                 margin: { left: margemEsq, right: 35, bottom: 35 },
                 didDrawPage: () => {
@@ -533,7 +555,6 @@
 
     // ================= EXPORTAÇÃO EXCEL (CSV) =================
     function exportarCSV() {
-
         if (!permissoesAcesso.export) {
             window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
             return;
@@ -541,14 +562,15 @@
 
         modalExport.style.display = 'none';
 
-        const cabecalho = ['Código Ajuste', 'Data', 'Almoxarifado', 'Equipamento', 'MAC (GPON)', 'Nº de Série', 'Patrimônio ERP', 'Status', 'Responsável Registro', 'Observações'];
+        const cabecalho = ['Código Ajuste', 'Data', 'Almox. Origem', 'Almox. Destino', 'Equipamento', 'MAC (GPON)', 'Nº de Série', 'Patrimônio ERP', 'Status', 'Responsável Registro', 'Observações'];
         const escapar = (val) => `"${String(val || '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 
         const linhasExport = montarLinhasExportacao();
         const linhas = linhasExport.map(l => [
             l.codigo,
             l.data,
-            l.almox,
+            l.almoxOrigem,
+            l.almoxDestino,
             l.produto,
             l.mac,
             l.serie,
@@ -591,21 +613,23 @@
         carregarDados().finally(() => { if (icon) icon.classList.remove('lucide-spin'); });
     });
 
-    btnGerarRelatorio.addEventListener('click', () => {
-        if (!permissoesAcesso.export) {
-            window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
-            return;
-        }
-        if (dadosFiltrados.length === 0) {
-            window.appAlert('Atenção', 'Nenhum ajuste encontrado para os filtros aplicados.', 'warning');
-            return;
-        }
-        const totalMacs = dadosFiltrados.reduce((acc, r) => acc + (r.qtdMacs || 0), 0);
-        if (lblQtdModalExport) lblQtdModalExport.innerText = dadosFiltrados.length;
-        if (lblQtdMacsExport) lblQtdMacsExport.innerText = totalMacs;
-        modalExport.style.display = 'flex';
-        lucide.createIcons();
-    });
+    if (btnGerarRelatorio) {
+        btnGerarRelatorio.addEventListener('click', () => {
+            if (!permissoesAcesso.export) {
+                window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
+                return;
+            }
+            if (dadosFiltrados.length === 0) {
+                window.appAlert('Atenção', 'Nenhum ajuste encontrado para os filtros aplicados.', 'warning');
+                return;
+            }
+            const totalMacs = dadosFiltrados.reduce((acc, r) => acc + (r.qtdMacs || 0), 0);
+            if (lblQtdModalExport) lblQtdModalExport.innerText = dadosFiltrados.length;
+            if (lblQtdMacsExport) lblQtdMacsExport.innerText = totalMacs;
+            modalExport.style.display = 'flex';
+            lucide.createIcons();
+        });
+    }
 
     btnFecharExport.addEventListener('click', () => { modalExport.style.display = 'none'; });
     btnConfirmarPdf.addEventListener('click', exportarPDF);

@@ -1,6 +1,14 @@
 // app/js/mobile.js
 (async function initAppMobile() {
 
+    // ================= FORMATAÇÃO PADRÃO 6 ALGARISMOS =================
+    const fmtCod = (codigo) => {
+        if (typeof window.fmtCod === 'function') return window.fmtCod(codigo);
+        if (codigo === null || codigo === undefined || codigo === '') return '-';
+        const str = String(codigo).trim();
+        return /^\d+$/.test(str) ? str.padStart(6, '0') : str;
+    };
+
     // ================= BLOQUEIO DO GERENCIADOR DE SENHAS (GOOGLE/CHROME) =================
     function bloquearGerenciadorSenhasMobile() {
         const campos = document.querySelectorAll('input, textarea');
@@ -15,16 +23,13 @@
             el.setAttribute('autocorrect', 'off');
 
             if (el.type === 'password') {
-                // Impede o Chrome de associar os campos de "Alterar Senha" a um login
                 el.setAttribute('autocomplete', 'new-password');
                 el.setAttribute('name', `cnx_pass_${idx}_${Date.now()}`);
 
-                // Mantém readonly enquanto não está em foco para o navegador ignorar o campo oculto
                 el.readOnly = true;
                 el.addEventListener('focus', () => { el.readOnly = false; });
                 el.addEventListener('blur', () => { el.readOnly = true; });
             } else {
-                // "one-time-code" ou valor aleatório força o Chrome a não sugerir nem salvar senha
                 el.setAttribute('autocomplete', 'off');
                 el.setAttribute('name', `cnx_field_${idx}_${Date.now()}`);
             }
@@ -34,7 +39,6 @@
     bloquearGerenciadorSenhasMobile();
 
     if (window.lucide) lucide.createIcons();
-
 
     // Converte automaticamente para CAIXA ALTA enquanto digita (exceto campos de senha)
     document.addEventListener('input', (e) => {
@@ -89,11 +93,14 @@
     let reqFormItens = [];
     let reqFormItensOriginais = [];
 
-
-    //
     function temPermissaoMobile(chave) {
         if (isAdmin) return true;
         return Boolean(permissoesMobile?.[chave]);
+    }
+
+    function almoxarifadoPermitido(id) {
+        if (!id) return false;
+        return almoxarifadosPermitidos.some(a => String(a.id) === String(id));
     }
 
     function aplicarPermissoesInterfaceMobile() {
@@ -180,7 +187,6 @@
             if (!audioCtx) audioCtx = new AudioContextClass();
             if (audioCtx.state === 'suspended') audioCtx.resume();
 
-            // Pulso silencioso para liberar a saída de áudio no Android/iOS
             const buffer = audioCtx.createBuffer(1, 1, 22050);
             const source = audioCtx.createBufferSource();
             source.buffer = buffer;
@@ -216,11 +222,9 @@
 
             const agora = audioCtx.currentTime;
             if (tipo === 'serial') {
-                // Bip duplo agudo ao concluir o equipamento (MAC + Série)
                 tocarNota(1050, agora, 0.11);
                 tocarNota(1400, agora + 0.13, 0.16);
             } else {
-                // Bip simples ao ler o MAC
                 tocarNota(950, agora, 0.13);
             }
         } catch (err) {
@@ -358,6 +362,15 @@
             window.history.pushState({ app: 'smart-cnx', view: novaView }, '');
         }
 
+        if (novaView === 'coleta' && almoxarifadosPermitidos.length === 1) {
+            const unico = almoxarifadosPermitidos[0];
+            const desc = `${fmtCod(unico.codigo)} - ${unico.descricao}`;
+            if (!document.getElementById('col-almoxarifado').value) {
+                setPickerValue('col-almoxarifado', 'lbl-pick-col-almox', unico.id, desc, 'Toque para buscar origem...');
+                setPickerValue('col-almoxarifado-destino', 'lbl-pick-col-almox-destino', unico.id, desc, 'Toque para buscar destino...');
+            }
+        }
+
         if (novaView === 'requisicoes') carregarRequisicoesMobile();
         if (window.lucide) lucide.createIcons();
         return true;
@@ -371,7 +384,6 @@
 
         voltarEmAndamento = true;
         try {
-            // 1. Fecha o modal mais recente no topo da pilha
             if (pilhaModais.length > 0) {
                 const topo = pilhaModais[pilhaModais.length - 1];
                 const fechou = await tentarFecharModal(topo);
@@ -379,13 +391,11 @@
                 return;
             }
 
-            // 2. Navegação em etapas dentro da Coleta de MAC
             if (viewAtual === 'coleta') {
                 const stepAtiva = document.getElementById('coleta-step-ativa');
                 const stepSetup = document.getElementById('coleta-step-setup');
                 const passoScan = document.getElementById('coleta-passo-scanner');
 
-                // 2a. Da câmera -> valida se há leitura em andamento ou itens já bipados no lote
                 if (stepAtiva.style.display !== 'none' && passoScan.style.display !== 'none') {
                     const manual = document.getElementById('col-input-manual')?.value.trim();
                     if (loteMac.length > 0 || macTemp || manual) {
@@ -404,7 +414,6 @@
                     return;
                 }
 
-                // 2b. Da seleção de modelo -> volta para seleção de almoxarifado
                 if (stepAtiva.style.display !== 'none') {
                     const conf = await mConfirm(
                         'Voltar para Almoxarifado',
@@ -429,7 +438,6 @@
                     return;
                 }
 
-                // 2c. Da seleção de almoxarifado -> valida form sujo antes de voltar à Home
                 if (coletaTemDadosPreenchidos()) {
                     const conf = await mConfirm(
                         'Descartar Coleta',
@@ -449,7 +457,6 @@
                 return;
             }
 
-            // 3. Outras telas (incluindo Minha Conta) -> volta para a tela inicial
             if (viewAtual !== 'home') {
                 const saiu = await navegarParaView('home', false);
                 if (!saiu) {
@@ -460,7 +467,6 @@
                 return;
             }
 
-            // 4. Mantém no app evitando fechamento acidental
             window.history.pushState({ app: 'smart-cnx', view: 'home', guard: true }, '');
         } finally {
             voltarEmAndamento = false;
@@ -491,7 +497,9 @@
 
         const termo = filtro.trim().toLowerCase();
         const filtrados = termo
-            ? seletorListaAtual.filter(item => `${item.codigo || ''} ${item.descricao || ''}`.toLowerCase().includes(termo))
+            ? seletorListaAtual.filter(item =>
+                `${item.codigo || ''} ${fmtCod(item.codigo)} ${item.descricao || ''}`.toLowerCase().includes(termo)
+            )
             : seletorListaAtual;
 
         if (filtrados.length === 0) {
@@ -499,11 +507,10 @@
             return;
         }
 
-        // Limita a 150 linhas visíveis para manter rolagem instantânea no celular
         const exibidos = filtrados.slice(0, 150);
         tbody.innerHTML = exibidos.map(item => `
             <tr data-id="${item.id}">
-                <td>${item.codigo || '-'}</td>
+                <td>${fmtCod(item.codigo)}</td>
                 <td>${item.descricao || '-'}</td>
             </tr>
         `).join('');
@@ -598,16 +605,27 @@
         btn.addEventListener('click', () => mudarAbaReqForm(btn.dataset.reqTab));
     });
 
-    // Pickers de Coleta de MAC
+    // Pickers de Coleta de MAC (somente almoxarifados vinculados/liberados ao usuário)
     document.getElementById('btn-pick-col-almox')?.addEventListener('click', () => {
+        if (almoxarifadosPermitidos.length === 0) {
+            mAlert('Atenção', 'Nenhum almoxarifado vinculado ao seu usuário.');
+            return;
+        }
         abrirSeletor('Almoxarifado de Origem', almoxarifadosPermitidos, (item) => {
-            setPickerValue('col-almoxarifado', 'lbl-pick-col-almox', item.id, `${item.codigo} - ${item.descricao}`, 'Toque para buscar origem...');
+            const desc = `${fmtCod(item.codigo)} - ${item.descricao}`;
+            setPickerValue('col-almoxarifado', 'lbl-pick-col-almox', item.id, desc, 'Toque para buscar origem...');
+            // Define o destino igual à origem por padrão (mantendo livre para edição)
+            setPickerValue('col-almoxarifado-destino', 'lbl-pick-col-almox-destino', item.id, desc, 'Toque para buscar destino...');
         });
     });
 
     document.getElementById('btn-pick-col-almox-destino')?.addEventListener('click', () => {
-        abrirSeletor('Almoxarifado de Destino', todosAlmoxarifados, (item) => {
-            setPickerValue('col-almoxarifado-destino', 'lbl-pick-col-almox-destino', item.id, `${item.codigo} - ${item.descricao}`, 'Toque para buscar destino...');
+        if (almoxarifadosPermitidos.length === 0) {
+            mAlert('Atenção', 'Nenhum almoxarifado vinculado ao seu usuário.');
+            return;
+        }
+        abrirSeletor('Almoxarifado de Destino', almoxarifadosPermitidos, (item) => {
+            setPickerValue('col-almoxarifado-destino', 'lbl-pick-col-almox-destino', item.id, `${fmtCod(item.codigo)} - ${item.descricao}`, 'Toque para buscar destino...');
         });
     });
 
@@ -616,32 +634,37 @@
             p => String(p.tipo || '').trim().toLowerCase() === 'produto'
         );
         abrirSeletor('Selecionar Modelo / Produto', somenteProdutos, (item) => {
-            setPickerValue('col-produto', 'lbl-pick-col-prod', item.id, `${item.codigo} - ${item.descricao}`, 'Toque para buscar produto...');
+            setPickerValue('col-produto', 'lbl-pick-col-prod', item.id, `${fmtCod(item.codigo)} - ${item.descricao}`, 'Toque para buscar produto...');
         });
     });
 
-    // Pickers de Requisição
+    // Pickers de Requisição (somente almoxarifados vinculados/liberados ao usuário)
     document.getElementById('btn-pick-req-sol')?.addEventListener('click', () => {
-        const listaSol = (almoxarifadosPermitidos && almoxarifadosPermitidos.length > 0)
-            ? almoxarifadosPermitidos
-            : todosAlmoxarifados;
+        if (almoxarifadosPermitidos.length === 0) {
+            mAlert('Atenção', 'Nenhum almoxarifado vinculado ao seu usuário.');
+            return;
+        }
 
-        abrirSeletor('Almoxarifado Solicitante', listaSol, (item) => {
-            setPickerValue('req-almox-sol', 'lbl-pick-req-sol', item.id, `${item.codigo} - ${item.descricao}`, 'Toque para buscar solicitante...');
+        abrirSeletor('Almoxarifado Solicitante', almoxarifadosPermitidos, (item) => {
+            setPickerValue('req-almox-sol', 'lbl-pick-req-sol', item.id, `${fmtCod(item.codigo)} - ${item.descricao}`, 'Toque para buscar solicitante...');
             reqFormSujo = true;
 
             if (item.almoxarifado_abastecedor_id) {
                 const abast = todosAlmoxarifados.find(a => a.id === item.almoxarifado_abastecedor_id);
                 if (abast) {
-                    setPickerValue('req-almox-abast', 'lbl-pick-req-abast', abast.id, `${abast.codigo} - ${abast.descricao}`, 'Toque para buscar abastecedor...');
+                    setPickerValue('req-almox-abast', 'lbl-pick-req-abast', abast.id, `${fmtCod(abast.codigo)} - ${abast.descricao}`, 'Toque para buscar abastecedor...');
                 }
             }
         });
     });
 
     document.getElementById('btn-pick-req-abast')?.addEventListener('click', () => {
-        abrirSeletor('Almoxarifado Abastecedor', todosAlmoxarifados, (item) => {
-            setPickerValue('req-almox-abast', 'lbl-pick-req-abast', item.id, `${item.codigo} - ${item.descricao}`, 'Toque para buscar abastecedor...');
+        if (almoxarifadosPermitidos.length === 0) {
+            mAlert('Atenção', 'Nenhum almoxarifado vinculado ao seu usuário.');
+            return;
+        }
+        abrirSeletor('Almoxarifado Abastecedor', almoxarifadosPermitidos, (item) => {
+            setPickerValue('req-almox-abast', 'lbl-pick-req-abast', item.id, `${fmtCod(item.codigo)} - ${item.descricao}`, 'Toque para buscar abastecedor...');
             reqFormSujo = true;
         });
     });
@@ -651,7 +674,7 @@
             p => String(p.tipo || '').trim().toLowerCase() === 'consumo'
         );
         abrirSeletor('Selecionar Produto (Consumo)', somenteConsumo, (item) => {
-            const texto = `${item.codigo} - ${item.descricao}`;
+            const texto = `${fmtCod(item.codigo)} - ${item.descricao}`;
             setPickerValue('req-item-prod', 'lbl-pick-req-prod', item.id, texto, 'Toque para buscar produto...');
             const inpNome = document.getElementById('req-item-prod-nome');
             if (inpNome) inpNome.value = texto;
@@ -706,9 +729,9 @@
             aplicarPermissoesInterfaceMobile();
 
             const [resAlmox, resVinc, resProds] = await Promise.all([
-                window.db.from('almoxarifados').select('id, codigo, descricao, almoxarifado_abastecedor_id').order('descricao'),
+                window.db.from('almoxarifados').select('id, codigo, descricao, almoxarifado_abastecedor_id').eq('status', 'ATIVO').order('descricao'),
                 window.db.from('usuario_almoxarifados').select('almoxarifado_id').eq('usuario_id', usuario.id),
-                window.db.from('produtos').select('id, codigo, descricao, tipo').order('descricao')
+                window.db.from('produtos').select('id, codigo, descricao, tipo').eq('status', 'ATIVO').order('descricao')
             ]);
 
             todosAlmoxarifados = resAlmox.data || [];
@@ -716,19 +739,21 @@
 
             almoxMap = {};
             todosAlmoxarifados.forEach(a => {
-                almoxMap[a.id] = `${a.codigo} - ${a.descricao}`;
+                almoxMap[a.id] = `${fmtCod(a.codigo)} - ${a.descricao}`;
             });
 
             if (isAdmin || usuario.acesso_todos_almoxarifados) {
                 almoxarifadosPermitidos = [...todosAlmoxarifados];
             } else {
-                const idsVinc = (resVinc.data || []).map(v => v.almoxarifado_id);
-                almoxarifadosPermitidos = todosAlmoxarifados.filter(a => idsVinc.includes(a.id));
+                const idsVinc = (resVinc.data || []).map(v => String(v.almoxarifado_id));
+                almoxarifadosPermitidos = todosAlmoxarifados.filter(a => idsVinc.includes(String(a.id)));
             }
 
             if (almoxarifadosPermitidos.length === 1) {
                 const unico = almoxarifadosPermitidos[0];
-                setPickerValue('col-almoxarifado', 'lbl-pick-col-almox', unico.id, `${unico.codigo} - ${unico.descricao}`, 'Toque para buscar almoxarifado...');
+                const desc = `${fmtCod(unico.codigo)} - ${unico.descricao}`;
+                setPickerValue('col-almoxarifado', 'lbl-pick-col-almox', unico.id, desc, 'Toque para buscar origem...');
+                setPickerValue('col-almoxarifado-destino', 'lbl-pick-col-almox-destino', unico.id, desc, 'Toque para buscar destino...');
             }
         } catch (err) {
             console.error('Erro na inicialização mobile:', err);
@@ -767,6 +792,10 @@
         const almoxDestId = document.getElementById('col-almoxarifado-destino').value;
         if (!almoxId || !almoxDestId) {
             mAlert('Atenção', 'Selecione o almoxarifado de origem e o de destino antes de iniciar.');
+            return;
+        }
+        if (!almoxarifadoPermitido(almoxId) || !almoxarifadoPermitido(almoxDestId)) {
+            mAlert('Acesso Negado', 'Você só pode selecionar almoxarifados liberados para o seu usuário.');
             return;
         }
         confAlmoxId = almoxId;
@@ -992,7 +1021,6 @@
             loteMac = [];
             renderizarLote();
 
-            // Limpa almoxarifados, produto e variáveis da coleta anterior
             confAlmoxId = null;
             confAlmoxNome = '';
             confAlmoxDestinoId = null;
@@ -1035,6 +1063,7 @@
         let query = window.db
             .from('requisicoes')
             .select('*')
+            .order('codigo', { ascending: false })
             .limit(80);
 
         if (!isAdmin && !usuario.acesso_todos_almoxarifados) {
@@ -1073,7 +1102,7 @@
             const cod = r.codigo ? String(r.codigo).padStart(6, '0') : String(r.id).slice(0, 6);
             const nomeDestino = almoxMap[r.almoxarifado_requisitante_id] || '-';
             const nomeOrigem = almoxMap[r.almoxarifado_abastecedor_id] || '-';
-            const dataRaw = r.data_solicitacao || r.data_criacao || r.atualizado_em;
+            const dataRaw = r.data_solicitacao || r.data_criacao || r.criado_em || r.atualizado_em;
             const dt = dataRaw ? new Date(dataRaw).toLocaleDateString('pt-BR') : '-';
             const podeReceber = statusAguardandoReceb.includes(st);
 
@@ -1107,6 +1136,10 @@
             mAlert('Acesso Negado', 'Você não tem permissão para criar requisições no mobile.');
             return;
         }
+        if (almoxarifadosPermitidos.length === 0) {
+            mAlert('Atenção', 'Nenhum almoxarifado vinculado ao seu usuário para criar requisições.');
+            return;
+        }
 
         document.getElementById('modal-req-titulo').innerText = 'Nova Requisição';
         document.getElementById('req-edit-id').value = '';
@@ -1120,11 +1153,11 @@
 
         if (almoxarifadosPermitidos.length === 1) {
             const unico = almoxarifadosPermitidos[0];
-            setPickerValue('req-almox-sol', 'lbl-pick-req-sol', unico.id, `${unico.codigo} - ${unico.descricao}`, 'Toque para buscar solicitante...');
+            setPickerValue('req-almox-sol', 'lbl-pick-req-sol', unico.id, `${fmtCod(unico.codigo)} - ${unico.descricao}`, 'Toque para buscar solicitante...');
             if (unico.almoxarifado_abastecedor_id) {
                 const abast = todosAlmoxarifados.find(a => a.id === unico.almoxarifado_abastecedor_id);
                 if (abast) {
-                    setPickerValue('req-almox-abast', 'lbl-pick-req-abast', abast.id, `${abast.codigo} - ${abast.descricao}`, 'Toque para buscar abastecedor...');
+                    setPickerValue('req-almox-abast', 'lbl-pick-req-abast', abast.id, `${fmtCod(abast.codigo)} - ${abast.descricao}`, 'Toque para buscar abastecedor...');
                 }
             }
         }
@@ -1159,7 +1192,7 @@
         reqFormItens = (itens || []).map(i => ({
             id: i.id,
             produto_id: i.produto_id,
-            nome: i.produtos ? `${i.produtos.codigo} - ${i.produtos.descricao}` : 'Produto',
+            nome: i.produtos ? `${fmtCod(i.produtos.codigo)} - ${i.produtos.descricao}` : 'Produto',
             qtd: Number(i.qtd_solicitada) || 0
         }));
         reqFormItensOriginais = reqFormItens.map(i => ({ ...i }));
@@ -1202,6 +1235,11 @@
         if (!solId || !abastId) {
             mudarAbaReqForm('geral');
             mAlert('Atenção', 'Selecione o almoxarifado solicitante e o abastecedor.');
+            return;
+        }
+        if (!almoxarifadoPermitido(solId)) {
+            mudarAbaReqForm('geral');
+            mAlert('Acesso Negado', 'O almoxarifado solicitante escolhido não está liberado para o seu usuário.');
             return;
         }
         if (reqFormItens.length === 0) {
@@ -1312,7 +1350,6 @@
         renderizarItensFormReq();
     };
 
-    
     window.verRequisicaoMobile = async function(reqId, modoReceber) {
         const req = requisicoesCache.find(r => r.id === reqId);
         if (!req) return;
@@ -1322,7 +1359,7 @@
         document.getElementById('modal-det-titulo').innerText = modoReceber ? `Receber Req. #${cod}` : `Requisição #${cod}`;
 
         const itensHtml = (itens || []).map(i => {
-            const nome = i.produtos ? `${i.produtos.codigo} - ${i.produtos.descricao}` : 'Produto';
+            const nome = i.produtos ? `${fmtCod(i.produtos.codigo)} - ${i.produtos.descricao}` : 'Produto';
             const qtdEnv = i.qtd_enviada ?? i.qtd_aprovada ?? i.qtd_solicitada;
             return `
                 <div class="m-lote-item">

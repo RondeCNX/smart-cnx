@@ -105,7 +105,11 @@
             return;
         }
         
-        produtosRaw = data || [];
+        produtosRaw = (data || []).map(p => ({
+            ...p,
+            codigoFormatado: window.fmtCod(p.codigo)
+        }));
+
         if (lblTotalGeral) lblTotalGeral.innerText = produtosRaw.length;
         aplicarFiltrosEOrdenar();
     }
@@ -232,6 +236,13 @@
         filtrosAtivos.forEach(filtro => {
             listaFiltrada = listaFiltrada.filter(item => {
                 if (filtro.campo === 'status') return String(item.status) === filtro.valor;
+
+                if (filtro.campo === 'codigo') {
+                    const codRaw = String(item.codigo || '').toUpperCase();
+                    const codFmt = String(item.codigoFormatado || '').toUpperCase();
+                    if (filtro.exato) return codRaw === filtro.valor || codFmt === filtro.valor;
+                    return codRaw.includes(filtro.valor) || codFmt.includes(filtro.valor);
+                }
                 
                 const valorCampo = String(item[filtro.campo] || '').toUpperCase();
                 if (filtro.exato) return valorCampo === filtro.valor;
@@ -259,9 +270,7 @@
                 ? `<span style="background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 800;">ATIVO</span>`
                 : `<span style="background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 800;">INATIVO</span>`;
             
-            // Controle de Acesso nas Ações
             let botoesAcao = `<button class="btn-ver" data-id="${p.id}" title="Visualizar" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="eye" style="width: 14px;"></i></button>`;
-            
             botoesAcao += `<button class="btn-hist" data-id="${p.id}" title="Histórico" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="rotate-ccw" style="width: 14px;"></i></button>`;
             
             if (permissoesAcesso.edit) {
@@ -273,7 +282,7 @@
 
             return `
                 <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#fff7ed'" onmouseout="this.style.background='transparent'">
-                    <td style="padding: 0.6rem 1.25rem; font-weight: 700;">${p.codigo || '-'}</td>
+                    <td style="padding: 0.6rem 1.25rem; font-weight: 700;">${p.codigoFormatado}</td>
                     <td style="padding: 0.6rem 1.25rem;">${p.descricao}</td>
                     <td style="padding: 0.6rem 1.25rem; color: #64748b; font-size: 0.75rem; font-weight: 600;">${p.tipo}</td>
                     <td style="padding: 0.6rem 1.25rem; color: #64748b; font-size: 0.75rem;">${p.unidade_medida}</td>
@@ -397,7 +406,7 @@
         modoEdicao = true;
         produtoEmEdicaoId = id;
 
-        inCodigo.value = p.codigo || '';
+        inCodigo.value = apenasLeitura ? window.fmtCod(p.codigo) : (p.codigo || '');
         inDescricao.value = p.descricao || '';
         inTipo.value = p.tipo || '';
         inUM.value = p.unidade_medida || '';

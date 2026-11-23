@@ -165,9 +165,9 @@
 
         todasColetas = (data || []).map(r => ({
             ...r,
-            almoxarifadoDesc: r.almoxarifado ? `${r.almoxarifado.codigo} - ${r.almoxarifado.descricao}` : 'Desconhecido',
-            almoxarifadoDestinoDesc: r.almoxarifado_destino ? `${r.almoxarifado_destino.codigo} - ${r.almoxarifado_destino.descricao}` : '-',
-            produtoDesc: r.produto ? `${r.produto.codigo} - ${r.produto.descricao}` : 'Desconhecido',
+            almoxarifadoDesc: r.almoxarifado ? `${window.fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : 'Desconhecido',
+            almoxarifadoDestinoDesc: r.almoxarifado_destino ? `${window.fmtCod(r.almoxarifado_destino.codigo)} - ${r.almoxarifado_destino.descricao}` : '-',
+            produtoDesc: r.produto ? `${window.fmtCod(r.produto.codigo)} - ${r.produto.descricao}` : 'Desconhecido',
             estoquistaNome: r.usuario ? r.usuario.nome_completo : 'Desconhecido'
         }));
 
@@ -476,7 +476,13 @@
             
             if (meusAlmoxarifadosIds.length === 1) {
                 const a = almoxarifados.find(x => x.id === meusAlmoxarifadosIds[0]);
-                if (a) { inAlmoxId.value = a.id; inAlmoxDesc.value = `${a.codigo} - ${a.descricao}`; }
+                if (a) {
+                    const descFmt = `${window.fmtCod(a.codigo)} - ${a.descricao}`;
+                    inAlmoxId.value = a.id;
+                    inAlmoxDesc.value = descFmt;
+                    inAlmoxDestinoId.value = a.id;
+                    inAlmoxDestinoDesc.value = descFmt;
+                }
             }
         } else {
             const r = todasColetas.find(x => x.id === id);
@@ -495,8 +501,8 @@
             inOs.value = r.numero_os || '';
             inObs.value = r.observacoes || '';
             inProdutoId.value = r.produto_consumo_id || '';
-            inProdutoCod.value = r.produto ? r.produto.codigo : '';
-            inProdutoDesc.value = r.produtoDesc || '';
+            inProdutoCod.value = r.produto ? window.fmtCod(r.produto.codigo) : '';
+            inProdutoDesc.value = r.produto ? r.produto.descricao : (r.produtoDesc || '');
             inMac.value = r.mac || '';
             inSerie.value = r.numero_serie || '';
             
@@ -638,6 +644,7 @@
             if (termo) {
                 lista = lista.filter(a =>
                     String(a.codigo || '').toUpperCase().includes(termo) ||
+                    window.fmtCod(a.codigo).toUpperCase().includes(termo) ||
                     String(a.descricao || '').toUpperCase().includes(termo)
                 );
             }
@@ -651,7 +658,7 @@
                 const fnSelec = tipoConsultaAtual === 'almoxarifado_origem' ? 'selecAlmoxOrigemColeta' : 'selecAlmoxDestinoColeta';
                 html = lista.map(a => `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 0.6rem; font-weight:700;">${a.codigo}</td>
+                        <td style="padding: 0.6rem; font-weight:700;">${window.fmtCod(a.codigo)}</td>
                         <td style="padding: 0.6rem;">${a.descricao}</td>
                         <td style="padding: 0.6rem; text-align: center;"><button type="button" onclick="window.${fnSelec}('${a.id}')" style="background:none; border:none; cursor:pointer;"><i data-lucide="check-circle" style="color:var(--cnx-blue); width:20px;"></i></button></td>
                     </tr>
@@ -662,6 +669,7 @@
             if (termo) {
                 lista = lista.filter(p =>
                     String(p.codigo || '').toUpperCase().includes(termo) ||
+                    window.fmtCod(p.codigo).toUpperCase().includes(termo) ||
                     String(p.descricao || '').toUpperCase().includes(termo)
                 );
             }
@@ -674,7 +682,7 @@
             else {
                 html = lista.map(p => `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 0.6rem; font-weight:700;">${p.codigo}</td>
+                        <td style="padding: 0.6rem; font-weight:700;">${window.fmtCod(p.codigo)}</td>
                         <td style="padding: 0.6rem;">${p.descricao}</td>
                         <td style="padding: 0.6rem; text-align: center;"><button type="button" onclick="window.selecProdColeta('${p.id}')" style="background:none; border:none; cursor:pointer;"><i data-lucide="check-circle" style="color:var(--cnx-blue); width:20px;"></i></button></td>
                     </tr>
@@ -687,20 +695,36 @@
 
     window.selecAlmoxOrigemColeta = function(id) {
         const a = almoxarifados.find(x => x.id === id);
-        if (a) { inAlmoxId.value = a.id; inAlmoxDesc.value = `${a.codigo} - ${a.descricao}`; formFoiAlterado = true; }
+        if (a) {
+            const descFmt = `${window.fmtCod(a.codigo)} - ${a.descricao}`;
+            inAlmoxId.value = a.id;
+            inAlmoxDesc.value = descFmt;
+
+            // Define o destino igual à origem por padrão (mantendo livre para edição)
+            inAlmoxDestinoId.value = a.id;
+            inAlmoxDestinoDesc.value = descFmt;
+
+            formFoiAlterado = true;
+        }
         modalConsulta.style.display = 'none'; 
     };
 
     window.selecAlmoxDestinoColeta = function(id) {
         const a = almoxarifados.find(x => x.id === id);
-        if (a) { inAlmoxDestinoId.value = a.id; inAlmoxDestinoDesc.value = `${a.codigo} - ${a.descricao}`; formFoiAlterado = true; }
+        if (a) {
+            inAlmoxDestinoId.value = a.id;
+            inAlmoxDestinoDesc.value = `${window.fmtCod(a.codigo)} - ${a.descricao}`;
+            formFoiAlterado = true;
+        }
         modalConsulta.style.display = 'none'; 
     };
 
     window.selecProdColeta = function(id) {
         const p = produtos.find(x => x.id === id);
         if (p) { 
-            inProdutoId.value = p.id; inProdutoCod.value = p.codigo; inProdutoDesc.value = p.descricao; 
+            inProdutoId.value = p.id;
+            inProdutoCod.value = window.fmtCod(p.codigo);
+            inProdutoDesc.value = p.descricao; 
             formFoiAlterado = true; 
         }
         modalConsulta.style.display = 'none'; 
@@ -733,7 +757,7 @@
         const pCache = produtos.find(x => candidatos.includes(String(x.codigo || '').trim().toUpperCase()));
         if (pCache) {
             inProdutoId.value = pCache.id;
-            inProdutoCod.value = pCache.codigo;
+            inProdutoCod.value = window.fmtCod(pCache.codigo);
             inProdutoDesc.value = pCache.descricao;
             formFoiAlterado = true;
             inMac.focus();
@@ -749,7 +773,7 @@
             
         if (data) {
             inProdutoId.value = data.id;
-            inProdutoCod.value = data.codigo;
+            inProdutoCod.value = window.fmtCod(data.codigo);
             inProdutoDesc.value = data.descricao;
             produtos.push(data);
             formFoiAlterado = true;

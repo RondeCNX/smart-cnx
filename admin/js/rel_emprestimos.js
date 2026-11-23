@@ -54,6 +54,13 @@
     let dadosFiltrados = [];
     let filtrosAtivos = [];
 
+    const fmtCod = (cod) => {
+        if (typeof window.fmtCod === 'function') return window.fmtCod(cod);
+        if (cod === null || cod === undefined || cod === '') return '-';
+        const str = String(cod).trim();
+        return /^\d+$/.test(str) ? str.padStart(6, '0') : str;
+    };
+
     // ================= PERMISSÕES E CARGA INICIAL =================
     async function carregarPermissoes() {
         try {
@@ -73,8 +80,8 @@
             acessoTodos = isAdmin || !!user?.acesso_todos_almoxarifados;
 
             permissoesAcesso = {
-                view: window.temPermissao('rel_emprestimos', 'view'),
-                export: window.temPermissao('rel_emprestimos', 'export')
+                view: isAdmin || (typeof window.temPermissao === 'function' && window.temPermissao('rel_emprestimos', 'view')),
+                export: isAdmin || (typeof window.temPermissao === 'function' && window.temPermissao('rel_emprestimos', 'export'))
             };
 
             if (!permissoesAcesso.view) {
@@ -83,8 +90,8 @@
                 return false;
             }
 
-            if (!permissoesAcesso.export && btnGerarRelatorio) {
-                btnGerarRelatorio.style.display = 'none';
+            if (btnGerarRelatorio) {
+                btnGerarRelatorio.style.display = permissoesAcesso.export ? 'flex' : 'none';
             }
 
             return true;
@@ -111,7 +118,7 @@
                 : todosAtivos.filter(a => idsVinc.includes(String(a.id)));
 
             selAlmox.innerHTML = '<option value="">Selecione o Almoxarifado...</option>' +
-                almoxarifadosPermitidos.map(a => `<option value="${a.id}">${a.codigo} - ${a.descricao}</option>`).join('');
+                almoxarifadosPermitidos.map(a => `<option value="${a.id}">${fmtCod(a.codigo)} - ${a.descricao}</option>`).join('');
 
             let query = window.db
                 .from('emprestimos')
@@ -148,7 +155,7 @@
 
                 const itensArr = r.itens || [];
                 const listaItens = itensArr.map(i => {
-                    const desc = i.produtos ? `${i.produtos.codigo} - ${i.produtos.descricao}` : 'Equipamento Excluído';
+                    const desc = i.produtos ? `${fmtCod(i.produtos.codigo)} - ${i.produtos.descricao}` : 'Equipamento Excluído';
                     const st = i.status === 'DEVOLVIDO' ? ' [DEV]' : '';
                     return `${i.qtd_emprestada}x ${desc}${st}`;
                 });
@@ -156,7 +163,7 @@
                 return {
                     ...r,
                     codigoFormatado: String(r.codigo).padStart(6, '0'),
-                    origemNome: r.almoxarifado ? `${r.almoxarifado.codigo} - ${r.almoxarifado.descricao}` : 'Desconhecido',
+                    origemNome: r.almoxarifado ? `${fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : 'Desconhecido',
                     criadorNome: r.usuarios ? r.usuarios.nome_completo : 'Sistema',
                     qtdItensLinhas: itensArr.length,
                     itensTexto: listaItens.join('; '),
@@ -383,7 +390,6 @@
 
     // ================= EXPORTAÇÃO PDF =================
     async function exportarPDF() {
-
         if (!permissoesAcesso.export) {
             window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
             return;
@@ -498,7 +504,6 @@
 
     // ================= EXPORTAÇÃO EXCEL (CSV) =================
     function exportarCSV() {
-
         if (!permissoesAcesso.export) {
             window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
             return;
@@ -555,19 +560,21 @@
         carregarDados().finally(() => { if (icon) icon.classList.remove('lucide-spin'); });
     });
 
-    btnGerarRelatorio.addEventListener('click', () => {
-        if (!permissoesAcesso.export) {
-            window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
-            return;
-        }
-        if (dadosFiltrados.length === 0) {
-            window.appAlert('Atenção', 'Nenhum empréstimo encontrado para os filtros aplicados.', 'warning');
-            return;
-        }
-        if (lblQtdModalExport) lblQtdModalExport.innerText = dadosFiltrados.length;
-        modalExport.style.display = 'flex';
-        lucide.createIcons();
-    });
+    if (btnGerarRelatorio) {
+        btnGerarRelatorio.addEventListener('click', () => {
+            if (!permissoesAcesso.export) {
+                window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
+                return;
+            }
+            if (dadosFiltrados.length === 0) {
+                window.appAlert('Atenção', 'Nenhum empréstimo encontrado para os filtros aplicados.', 'warning');
+                return;
+            }
+            if (lblQtdModalExport) lblQtdModalExport.innerText = dadosFiltrados.length;
+            modalExport.style.display = 'flex';
+            lucide.createIcons();
+        });
+    }
 
     btnFecharExport.addEventListener('click', () => { modalExport.style.display = 'none'; });
     btnConfirmarPdf.addEventListener('click', exportarPDF);

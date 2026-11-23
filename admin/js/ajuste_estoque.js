@@ -33,21 +33,19 @@
 
     const inAlmoxId = moduloContent.querySelector('#ajuste-almox-id');
     const inAlmoxDesc = moduloContent.querySelector('#ajuste-almox-desc');
+    const blocoAlmoxPendentes = moduloContent.querySelector('#bloco-almox-pendentes');
+    const blocoAlmoxReadonly = moduloContent.querySelector('#bloco-almox-readonly');
+    const listaAlmoxPendentesEl = moduloContent.querySelector('#lista-almox-pendentes-ajuste');
+
     const inIdEntrada = moduloContent.querySelector('#ajuste-id-entrada');
     const inIdInventario = moduloContent.querySelector('#ajuste-id-inventario');
     const inDataAjuste = moduloContent.querySelector('#ajuste-data');
     const inObs = moduloContent.querySelector('#ajuste-obs');
-    const btnBuscaAlmox = moduloContent.querySelector('#btn-busca-almox');
 
     // Itens (Aba 2)
     const tbodyMacs = moduloContent.querySelector('#tbody-itens-pendentes');
     const chkAllMacs = moduloContent.querySelector('#chk-all-macs');
     const lblTotalMacsSel = moduloContent.querySelector('#lbl-total-macs-sel');
-
-    // Componentes Modal Consulta (Lupa)
-    const modalConsulta = moduloContent.querySelector('#modal-consulta-ajuste');
-    const inputBuscaConsulta = moduloContent.querySelector('#input-busca-consulta-ajuste');
-    const tbodyConsulta = moduloContent.querySelector('#tbody-consulta-ajuste');
 
     let usuarioLogadoId = null;
     let isAdmin = false;
@@ -83,8 +81,7 @@
             return;
         }
 
-        await abrirFormulario('novo', null);
-        window.selecAlmoxAjuste(almoxId);
+        await abrirFormulario('novo', null, almoxId);
     }
 
     document.addEventListener('telaRestaurada', (e) => {
@@ -154,7 +151,11 @@
                 *,
                 almoxarifado:almoxarifados(codigo, descricao),
                 usuario:usuarios!usuario_supervisor_id(nome_completo),
-                coletas:coletas_mac(id, mac, numero_serie, almoxarifado_destino:almoxarifados!almoxarifado_destino_id(codigo, descricao))
+                coletas:coletas_mac(
+                    id, mac, numero_serie,
+                    almoxarifado_origem:almoxarifados!almoxarifado_id(codigo, descricao),
+                    almoxarifado_destino:almoxarifados!almoxarifado_destino_id(codigo, descricao)
+                )
             `)
             .order('created_at', { ascending: false });
 
@@ -171,18 +172,27 @@
         }
 
         todosAjustes = (data || []).map(r => {
+            const origensUnicas = [
+                ...new Set(
+                    (r.coletas || [])
+                        .map(c => c.almoxarifado_origem ? `${window.fmtCod(c.almoxarifado_origem.codigo)} - ${c.almoxarifado_origem.descricao}` : null)
+                        .filter(Boolean)
+                )
+            ];
             const destinosUnicos = [
                 ...new Set(
                     (r.coletas || [])
-                        .map(c => c.almoxarifado_destino ? `${c.almoxarifado_destino.codigo} - ${c.almoxarifado_destino.descricao}` : null)
+                        .map(c => c.almoxarifado_destino ? `${window.fmtCod(c.almoxarifado_destino.codigo)} - ${c.almoxarifado_destino.descricao}` : null)
                         .filter(Boolean)
                 )
             ];
 
+            const almoxBase = r.almoxarifado ? `${window.fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : 'Desconhecido';
+
             return {
                 ...r,
-                almoxarifadoDesc: r.almoxarifado ? `${r.almoxarifado.codigo} - ${r.almoxarifado.descricao}` : 'Desconhecido',
-                almoxarifadoDestinoDesc: destinosUnicos.length > 0 ? destinosUnicos.join(', ') : '-',
+                almoxarifadoDesc: origensUnicas.length > 0 ? origensUnicas.join(', ') : almoxBase,
+                almoxarifadoDestinoDesc: destinosUnicos.length > 0 ? destinosUnicos.join(', ') : almoxBase,
                 supervisorNome: r.usuario ? r.usuario.nome_completo : 'Desconhecido',
                 qtdEquips: r.coletas ? r.coletas.length : 0
             };
@@ -362,8 +372,11 @@
             return;
         }
 
-        const btnAlmox = e.target.closest('#btn-busca-almox') || e.target.closest('#ajuste-almox-desc');
-        if (btnAlmox && !inAlmoxDesc.readOnly) { abrirModalConsulta(); return; }
+        const cardAlmox = e.target.closest('.card-almox-pendente');
+        if (cardAlmox && modoForm === 'novo') {
+            selecionarAlmoxarifadoPendente(cardAlmox.dataset.almoxId);
+            return;
+        }
         
         const chkItem = e.target.closest('.chk-mac-item');
         if (chkItem) {
@@ -379,6 +392,15 @@
                 tr.style.background = 'transparent';
             }
             atualizarContadorSelecao();
+        }
+    });
+
+    // Dois cliques no almoxarifado já seleciona e abre a Aba 2 com os MACs pendentes
+    moduloContent.addEventListener('dblclick', (e) => {
+        const cardAlmox = e.target.closest('.card-almox-pendente');
+        if (cardAlmox && modoForm === 'novo') {
+            selecionarAlmoxarifadoPendente(cardAlmox.dataset.almoxId);
+            tabBtns[1].click();
         }
     });
 
@@ -422,6 +444,95 @@
         });
     });
 
+    // ================= LISTA AUTOMÁTICA DE ALMOXARIFADOS COM PENDÊNCIAS (DESTINO) =================
+    async function carregarAlmoxarifadosComPendencias(almoxPreSelecionadoId = null) {
+        listaAlmoxPendentesEl.innerHTML = `<div style="grid-column: 1 / -1; text-align:center; padding: 1rem; color:#64748b;"><i data-lucide="loader-2" class="lucide-spin" style="width:18px;"></i> Buscando almoxarifados com MACs pendentes...</div>`;
+        lucide.createIcons();
+
+        let q = window.db
+            .from('coletas_mac')
+            .select(`
+                id,
+                almoxarifado_id,
+                almoxarifado_destino_id,
+                almoxarifado_origem:almoxarifados!almoxarifado_id(id, codigo, descricao),
+                almoxarifado_destino:almoxarifados!almoxarifado_destino_id(id, codigo, descricao)
+            `)
+            .eq('status', 'PENDENTE');
+
+        if (!acessoTodos && meusAlmoxarifadosIds.length > 0) {
+            const idsFmt = meusAlmoxarifadosIds.join(',');
+            q = q.or(`almoxarifado_destino_id.in.(${idsFmt}),almoxarifado_id.in.(${idsFmt})`);
+        } else if (!acessoTodos) {
+            listaAlmoxPendentesEl.innerHTML = `<div style="grid-column: 1 / -1; text-align:center; padding: 1rem; color:#64748b;">Nenhum almoxarifado vinculado.</div>`;
+            return;
+        }
+
+        const { data, error } = await q;
+        if (error) {
+            console.error('Erro ao buscar almoxarifados pendentes:', error);
+            listaAlmoxPendentesEl.innerHTML = `<div style="grid-column: 1 / -1; text-align:center; padding: 1rem; color:#ef4444;">Erro ao carregar pendências.</div>`;
+            return;
+        }
+
+        const mapa = {};
+        (data || []).forEach(m => {
+            const almoxRef = m.almoxarifado_destino || m.almoxarifado_origem;
+            const idRef = m.almoxarifado_destino_id || m.almoxarifado_id;
+            if (!idRef) return;
+
+            if (!mapa[idRef]) {
+                const desc = almoxRef
+                    ? `${window.fmtCod(almoxRef.codigo)} - ${almoxRef.descricao}`
+                    : 'Almoxarifado não identificado';
+                mapa[idRef] = { id: idRef, descricao: desc, qtd: 0 };
+            }
+            mapa[idRef].qtd += 1;
+        });
+
+        const grupos = Object.values(mapa).sort((a, b) =>
+            a.descricao.localeCompare(b.descricao, 'pt-BR', { sensitivity: 'base' })
+        );
+
+        if (grupos.length === 0) {
+            listaAlmoxPendentesEl.innerHTML = `<div style="grid-column: 1 / -1; text-align:center; padding: 1rem; color:#10b981; font-weight:700;">Nenhum almoxarifado possui MACs pendentes de ajuste no momento!</div>`;
+            tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #10b981; font-weight:700;">Nenhum MAC pendente encontrado.</td></tr>`;
+            return;
+        }
+
+        listaAlmoxPendentesEl.innerHTML = grupos.map(g => {
+            const labelQtd = g.qtd === 1 ? '1 MAC' : `${g.qtd} MACs`;
+            return `
+                <button type="button" class="card-almox-pendente" data-almox-id="${g.id}" style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; background:white; border:1px solid #cbd5e1; border-radius:6px; cursor:pointer; text-align:left; transition:all 0.15s;">
+                    <span style="font-size:0.76rem; font-weight:700; color:var(--cnx-blue); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${g.descricao}">${g.descricao}</span>
+                    <span style="background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; padding:2px 8px; border-radius:99px; font-size:0.66rem; font-weight:800; flex-shrink:0;">${labelQtd}</span>
+                </button>
+            `;
+        }).join('');
+
+        // Pré-seleciona automaticamente se veio do painel da Home ou se só houver 1 almoxarifado pendente
+        if (almoxPreSelecionadoId && mapa[almoxPreSelecionadoId]) {
+            selecionarAlmoxarifadoPendente(almoxPreSelecionadoId);
+        } else if (grupos.length === 1) {
+            selecionarAlmoxarifadoPendente(grupos[0].id);
+        }
+    }
+
+    function selecionarAlmoxarifadoPendente(idAlmox) {
+        inAlmoxId.value = idAlmox;
+
+        listaAlmoxPendentesEl.querySelectorAll('.card-almox-pendente').forEach(btn => {
+            const ativo = btn.dataset.almoxId === idAlmox;
+            btn.style.borderColor = ativo ? 'var(--cnx-orange)' : '#cbd5e1';
+            btn.style.background = ativo ? '#fff7ed' : 'white';
+            btn.style.boxShadow = ativo ? '0 0 0 2px rgba(242, 101, 34, 0.2)' : 'none';
+        });
+
+        chkAllMacs.checked = false;
+        lblTotalMacsSel.innerText = '0';
+        carregarMacsPendentes(idAlmox);
+    }
+
     // ================= LÓGICA DO MODAL DE AJUSTE =================
     btnNovoAjuste.addEventListener('click', () => {
         if (!permissoesAcesso.create) {
@@ -441,7 +552,7 @@
     }
     moduloContent.querySelector('#btn-fechar-ajuste').addEventListener('click', fecharModalAjuste);
 
-    async function abrirFormulario(modo, id) {
+    async function abrirFormulario(modo, id, almoxPreSelecionadoId = null) {
         const mapaModoPerm = { novo: 'create', editar: 'edit' };
         if (mapaModoPerm[modo] && !permissoesAcesso[mapaModoPerm[modo]]) {
             window.appAlert('Acesso Negado', 'Você não tem permissão para executar esta ação.', 'error');
@@ -465,32 +576,37 @@
         
         if (modo === 'novo') {
             modalTitulo.innerHTML = `<i data-lucide="layers" style="color: var(--cnx-orange); width: 20px;"></i> <span>Criar Lote de Ajuste</span>`;
-            inAlmoxDesc.readOnly = false; inIdEntrada.readOnly = false; inIdInventario.readOnly = false;
+            blocoAlmoxPendentes.style.display = 'block';
+            blocoAlmoxReadonly.style.display = 'none';
+            inIdEntrada.readOnly = false; inIdInventario.readOnly = false;
             inDataAjuste.readOnly = false; inObs.readOnly = false;
-            btnBuscaAlmox.style.display = 'block';
             montarFooterFormulario(true);
-            tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #94a3b8;">Selecione um Almoxarifado de Origem na Aba 1 para listar os MACs pendentes.</td></tr>`;
+            tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #94a3b8;">Selecione um Almoxarifado de Destino na Aba 1 para listar os MACs pendentes.</td></tr>`;
+            modalAjuste.style.display = 'flex';
+            lucide.createIcons();
+            await carregarAlmoxarifadosComPendencias(almoxPreSelecionadoId);
+            return;
         } else {
             const r = todosAjustes.find(x => x.id === id);
             if (!r) return;
             
             modalTitulo.innerHTML = `<i data-lucide="layers" style="color: var(--cnx-orange); width: 20px;"></i> <span>Detalhes do Ajuste de Estoque</span>`;
+            blocoAlmoxPendentes.style.display = 'none';
+            blocoAlmoxReadonly.style.display = 'block';
             
             inDataAjuste.value = r.data_ajuste ? r.data_ajuste.split('T')[0] : '';
-            inAlmoxId.value = r.almoxarifado_id; inAlmoxDesc.value = r.almoxarifadoDesc;
-            inIdEntrada.value = r.id_entrada_erp; inIdInventario.value = r.id_inventario_erp; inObs.value = r.observacoes;
+            inAlmoxId.value = r.almoxarifado_id;
+            inAlmoxDesc.value = r.almoxarifadoDestinoDesc;
+            inIdEntrada.value = r.id_entrada_erp; inIdInventario.value = r.id_inventario_erp; inObs.value = r.observacoes || '';
             
             if (modo === 'visualizar') {
-                inAlmoxDesc.readOnly = true; inIdEntrada.readOnly = true; inIdInventario.readOnly = true;
+                inIdEntrada.readOnly = true; inIdInventario.readOnly = true;
                 inDataAjuste.readOnly = true; inObs.readOnly = true;
-                btnBuscaAlmox.style.display = 'none';
                 chkAllMacs.disabled = true;
                 montarFooterFormulario(false);
             } else if (modo === 'editar') {
-                inAlmoxDesc.readOnly = true;
                 inIdEntrada.readOnly = false; inIdInventario.readOnly = false;
                 inDataAjuste.readOnly = false; inObs.readOnly = false;
-                btnBuscaAlmox.style.display = 'none';
                 chkAllMacs.disabled = false;
                 montarFooterFormulario(true);
             }
@@ -513,8 +629,8 @@
                 almoxarifado_origem:almoxarifados!almoxarifado_id(codigo, descricao),
                 almoxarifado_destino:almoxarifados!almoxarifado_destino_id(codigo, descricao)
             `)
-            .eq('almoxarifado_id', idAlmox)
             .eq('status', 'PENDENTE')
+            .or(`almoxarifado_destino_id.eq.${idAlmox},and(almoxarifado_destino_id.is.null,almoxarifado_id.eq.${idAlmox})`)
             .order('data_coleta', { ascending: true });
 
         if (error) {
@@ -562,13 +678,13 @@
 
     function renderizarGridMacs(editavel, jaSalvos = false) {
         tbodyMacs.innerHTML = macsDisponiveis.map(m => {
-            const pDesc = m.produto ? `${m.produto.codigo} - ${m.produto.descricao}` : '-';
+            const pDesc = m.produto ? `${window.fmtCod(m.produto.codigo)} - ${m.produto.descricao}` : '-';
             const mDesc = `<div style="font-weight:800; color:var(--cnx-orange);">${m.mac}</div><div style="font-size:0.7rem; color:#64748b;">SN: ${m.numero_serie || '-'}</div>`;
             const origDesc = m.almoxarifado_origem
-                ? `${m.almoxarifado_origem.codigo} - ${m.almoxarifado_origem.descricao}`
+                ? `${window.fmtCod(m.almoxarifado_origem.codigo)} - ${m.almoxarifado_origem.descricao}`
                 : '-';
             const destDesc = m.almoxarifado_destino
-                ? `${m.almoxarifado_destino.codigo} - ${m.almoxarifado_destino.descricao}`
+                ? `${window.fmtCod(m.almoxarifado_destino.codigo)} - ${m.almoxarifado_destino.descricao}`
                 : '-';
             const dFmt = m.data_coleta ? new Date(m.data_coleta + 'T12:00:00').toLocaleDateString('pt-BR') : '-';
             const oDesc = `<div style="font-weight:700; color:var(--cnx-blue);">${m.numero_os || '-'}</div><div style="font-size:0.7rem; color:#64748b;">${dFmt}</div>`;
@@ -631,11 +747,35 @@
         const entErp = inIdEntrada.value.trim().toUpperCase();
         const invErp = inIdInventario.value.trim().toUpperCase();
         const dt = inDataAjuste.value;
-        
-        if (!idAlmox || !entErp || !invErp || !dt) { window.appAlert("Atenção", "Preencha todos os campos obrigatórios (*) na Aba 1.", "warning"); return; }
-        
         const chks = Array.from(moduloContent.querySelectorAll('.chk-mac-item:checked'));
-        if (chks.length === 0) { window.appAlert("Atenção", "Selecione pelo menos um MAC na Aba 2 para vincular ao lote.", "warning"); return; }
+        const estaNaAbaDados = moduloContent.querySelector('#form-tab-dados')?.style.display !== 'none';
+
+        if (!idAlmox) {
+            window.appAlert("Atenção", "Selecione um Almoxarifado de Destino na Aba 1.", "warning");
+            tabBtns[0].click();
+            return;
+        }
+
+        // Se está na Aba 1 com almoxarifado selecionado e ainda não escolheu os MACs, avança para a Aba 2
+        if (modoForm === 'novo' && estaNaAbaDados && chks.length === 0) {
+            tabBtns[1].click();
+            return;
+        }
+
+        if (!entErp || !invErp || !dt) {
+            window.appAlert("Atenção", "Preencha ID Entrada IXC, ID Inventário IXC e Data do Ajuste na Aba 1.", "warning");
+            tabBtns[0].click();
+            if (!entErp) inIdEntrada.focus();
+            else if (!invErp) inIdInventario.focus();
+            else inDataAjuste.focus();
+            return;
+        }
+        
+        if (chks.length === 0) {
+            window.appAlert("Atenção", "Selecione pelo menos um MAC na Aba 2 para vincular ao lote.", "warning");
+            tabBtns[1].click();
+            return;
+        }
 
         let macsParaAtualizar = [];
         for (let chk of chks) {
@@ -709,65 +849,14 @@
         finally { btnSave.disabled = false; btnSave.innerHTML = `Confirmar Ajuste`; }
     }
 
-    // ================= MODAL DE CONSULTA (LUPA) =================
-    async function abrirModalConsulta() {
-        inputBuscaConsulta.value = '';
-        tbodyConsulta.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>`;
-        modalConsulta.style.display = 'flex';
-        lucide.createIcons();
-        renderizarListaConsulta();
-    }
-
-    moduloContent.querySelector('#btn-fechar-consulta-ajuste').addEventListener('click', () => modalConsulta.style.display = 'none');
-    inputBuscaConsulta.addEventListener('input', renderizarListaConsulta);
-
-    function renderizarListaConsulta() {
-        const termo = inputBuscaConsulta.value.trim().toUpperCase();
-        let lista = almoxarifados.filter(a => meusAlmoxarifadosIds.includes(a.id));
-        if (termo) {
-            lista = lista.filter(a =>
-                String(a.codigo || '').toUpperCase().includes(termo) ||
-                String(a.descricao || '').toUpperCase().includes(termo)
-            );
-        }
-
-        lista.sort((a, b) =>
-            String(a.descricao || '').localeCompare(String(b.descricao || ''), 'pt-BR', { sensitivity: 'base' })
-        );
-        
-        if (lista.length === 0) {
-            tbodyConsulta.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:2rem; color:#64748b;">Nenhum almoxarifado disponível.</td></tr>`;
-        } else {
-            tbodyConsulta.innerHTML = lista.map(a => `
-                <tr style="border-bottom: 1px solid #f1f5f9;">
-                    <td style="padding: 0.6rem; font-weight:700;">${a.codigo}</td>
-                    <td style="padding: 0.6rem;">${a.descricao}</td>
-                    <td style="padding: 0.6rem; text-align: center;"><button type="button" onclick="window.selecAlmoxAjuste('${a.id}')" style="background:none; border:none; cursor:pointer;"><i data-lucide="check-circle" style="color:var(--cnx-blue); width:20px;"></i></button></td>
-                </tr>
-            `).join('');
-            lucide.createIcons();
-        }
-    }
-
-    window.selecAlmoxAjuste = function(id) {
-        const a = almoxarifados.find(x => x.id === id);
-        if (a) { 
-            inAlmoxId.value = a.id; 
-            inAlmoxDesc.value = `${a.codigo} - ${a.descricao}`; 
-            formFoiAlterado = true; 
-            modalConsulta.style.display = 'none'; 
-            carregarMacsPendentes(a.id);
-        }
-    };
-
     // Prevenção Modal Global Esc
     window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            const mConsulta = modalConsulta;
-            const mPrincipal = modalAjuste;
-            
-            if (mConsulta && mConsulta.style.display !== 'none') { e.preventDefault(); e.stopPropagation(); mConsulta.style.display = 'none'; return; }
-            if (mPrincipal && mPrincipal.style.display !== 'none') { e.preventDefault(); e.stopPropagation(); fecharModalAjuste(); }
+            if (modalAjuste && modalAjuste.style.display !== 'none') {
+                e.preventDefault();
+                e.stopPropagation();
+                fecharModalAjuste();
+            }
         }
     }, true);
 

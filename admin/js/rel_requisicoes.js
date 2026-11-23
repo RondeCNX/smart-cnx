@@ -45,24 +45,16 @@
     let linhasFiltradas = [];
     let filtrosAtivos = [];
 
+    const fmtCod = (cod) => {
+        if (typeof window.fmtCod === 'function') return window.fmtCod(cod);
+        if (cod === null || cod === undefined || cod === '') return '-';
+        const str = String(cod).trim();
+        return /^\d+$/.test(str) ? str.padStart(6, '0') : str;
+    };
+
     // ================= CARGA DE DADOS =================
     async function inicializar() {
         try {
-            permissoesAcesso = {
-                view: window.temPermissao('rel_requisicoes', 'view'),
-                export: window.temPermissao('rel_requisicoes', 'export')
-            };
-
-            if (!permissoesAcesso.view) {
-                moduloContent.innerHTML = `<div style="text-align: center; padding: 4rem; color: #ef4444;"><i data-lucide="shield-alert" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i><h2 style="font-weight: 800;">Acesso Negado</h2><p>Você não tem permissão para visualizar o Relatório de Requisições.</p></div>`;
-                lucide.createIcons();
-                return;
-            }
-
-            if (btnAbrirExport && !permissoesAcesso.export) {
-                btnAbrirExport.style.display = 'none';
-            }
-
             const { data: { session } } = await window.db.auth.getSession();
             if (!session) return;
             usuarioLogadoId = session.user.id;
@@ -73,7 +65,23 @@
 
             nomeUsuarioLogado = user?.nome_completo || 'Usuário';
             const cargo = user?.cargos?.nome?.toUpperCase() || '';
-            isGestor = cargo === 'ADMINISTRADOR' || cargo.includes('SUPERVISOR') || !!user?.acesso_todos_almoxarifados;
+            const isAdmin = cargo === 'ADMINISTRADOR';
+            isGestor = isAdmin || cargo.includes('SUPERVISOR') || !!user?.acesso_todos_almoxarifados;
+
+            permissoesAcesso = {
+                view: isAdmin || (typeof window.temPermissao === 'function' && window.temPermissao('rel_requisicoes', 'view')),
+                export: isAdmin || (typeof window.temPermissao === 'function' && window.temPermissao('rel_requisicoes', 'export'))
+            };
+
+            if (!permissoesAcesso.view) {
+                moduloContent.innerHTML = `<div style="text-align: center; padding: 4rem; color: #ef4444;"><i data-lucide="shield-alert" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i><h2 style="font-weight: 800;">Acesso Negado</h2><p>Você não tem permissão para visualizar o Relatório de Requisições.</p></div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            if (btnAbrirExport) {
+                btnAbrirExport.style.display = permissoesAcesso.export ? 'flex' : 'none';
+            }
 
             const { data: vincs } = await window.db.from('usuario_almoxarifados')
                 .select('almoxarifado_id').eq('usuario_id', usuarioLogadoId);
@@ -101,9 +109,14 @@
             .order('codigo', { ascending: false });
 
         if (!isGestor) {
-            const idsFmt = meusAlmoxIds.map(i => `"${i}"`).join(',');
-            if (idsFmt) query = query.or(`almoxarifado_requisitante_id.in.(${idsFmt}),almoxarifado_abastecedor_id.in.(${idsFmt})`);
-            else { linhasBase = []; aplicarFiltros(); return; }
+            if (meusAlmoxIds.length > 0) {
+                const idsFmt = meusAlmoxIds.join(',');
+                query = query.or(`almoxarifado_requisitante_id.in.(${idsFmt}),almoxarifado_abastecedor_id.in.(${idsFmt})`);
+            } else {
+                linhasBase = [];
+                aplicarFiltros();
+                return;
+            }
         }
 
         const { data, error } = await query;
@@ -118,13 +131,13 @@
             const codigoFmt = String(r.codigo).padStart(6, '0');
             const dataIso = r.criado_em ? r.criado_em.split('T')[0] : '';
             const dataBr = r.criado_em ? new Date(r.criado_em).toLocaleDateString('pt-BR') : '-';
-            const origem = r.abastecedor ? `${r.abastecedor.codigo} - ${r.abastecedor.descricao}` : '-';
-            const destino = r.requisitante ? `${r.requisitante.codigo} - ${r.requisitante.descricao}` : '-';
+            const origem = r.abastecedor ? `${fmtCod(r.abastecedor.codigo)} - ${r.abastecedor.descricao}` : '-';
+            const destino = r.requisitante ? `${fmtCod(r.requisitante.codigo)} - ${r.requisitante.descricao}` : '-';
             const solicitante = r.user_solic ? r.user_solic.nome_completo : '-';
             const itens = r.itens && r.itens.length > 0 ? r.itens : [null];
 
             itens.forEach(item => {
-                const prodCod = item?.produtos?.codigo || '';
+                const prodCod = item?.produtos?.codigo ? fmtCod(item.produtos.codigo) : '';
                 const prodDesc = item?.produtos?.descricao || '-';
                 const produtoCompleto = prodCod ? `${prodCod} - ${prodDesc}` : prodDesc;
                 const qtdSolic = item?.qtd_solicitada ?? 0;
@@ -187,7 +200,6 @@
             valor = { ini, fim };
             labelValor = `${iniBr} até ${fimBr}`;
             exato = true;
-            // Substitui período anterior se já existir
             filtrosAtivos = filtrosAtivos.filter(f => f.campo !== 'periodo');
             inDataIni.value = '';
             inDataFim.value = '';
@@ -315,7 +327,6 @@
 
     // ================= EXPORTAÇÕES =================
     function exportarCSV() {
-
         if (!permissoesAcesso.export) {
             window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
             return;
@@ -341,7 +352,6 @@
     }
 
     async function exportarPDF() {
-
         if (!permissoesAcesso.export) {
             window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
             return;
@@ -374,7 +384,6 @@
         const pageHeight = doc.internal.pageSize.getHeight();
         const margemEsq = 40;
 
-        // Cabeçalho oficial CNX (mesmo padrão de Requisições e Empréstimos)
         try {
             const img = new Image();
             img.src = '../assets/imagens/Logo.png';
@@ -391,11 +400,9 @@
         doc.text('Fone: (64) 3404-8181    Email: atendimento@cnx.net.br', 95, 46);
         doc.text('RUA DIVINÓPOLIS - Itumbiara - GO - 75513-150', 95, 58);
 
-        // Título em Laranja
         doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(242, 101, 34);
         doc.text('RELATÓRIO DE REQUISIÇÕES DE MATERIAIS', pageWidth / 2, 85, { align: 'center' });
 
-        // Resumo dos Filtros
         const resumoFiltros = filtrosAtivos.length > 0
             ? filtrosAtivos.map(f => `${f.labelCampo}: ${f.labelValor}`).join(' | ')
             : 'Todos os registros';
@@ -455,14 +462,16 @@
         icon.classList.remove('lucide-spin');
     });
 
-    btnAbrirExport.addEventListener('click', () => {
-        if (!permissoesAcesso.export) {
-            window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
-            return;
-        }
-        modalExport.style.display = 'flex';
-        lucide.createIcons();
-    });
+    if (btnAbrirExport) {
+        btnAbrirExport.addEventListener('click', () => {
+            if (!permissoesAcesso.export) {
+                window.appAlert('Acesso Negado', 'Você não tem permissão para exportar este relatório.', 'error');
+                return;
+            }
+            modalExport.style.display = 'flex';
+            lucide.createIcons();
+        });
+    }
     btnFecharExport.addEventListener('click', () => { modalExport.style.display = 'none'; });
     btnExportPdf.addEventListener('click', exportarPDF);
     btnExportCsv.addEventListener('click', exportarCSV);

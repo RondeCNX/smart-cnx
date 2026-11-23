@@ -3,6 +3,13 @@ window.usuarioPermissoes = {};
 window.isAdminSistema = false;
 window.ajusteEstoqueAutoAbrirAlmoxId = null;
 
+// Formatação visual padrão de 6 algarismos para códigos de Almoxarifados e Produtos
+window.fmtCod = function(codigo) {
+    if (codigo === null || codigo === undefined || codigo === '') return '-';
+    const str = String(codigo).trim();
+    return /^\d+$/.test(str) ? str.padStart(6, '0') : str;
+};
+
 window.temPermissao = function(modulo, acao = 'view') {
     if (window.isAdminSistema) return true;
     if (!modulo || modulo === 'dashboard') return true;
@@ -159,7 +166,7 @@ async function carregarFiltroAlmoxarifados(userId) {
         // Caso 1: Apenas 1 almoxarifado vinculado -> exibe direto no rodapé sem dropdown
         if (almoxPermitidos.length === 1) {
             const unico = almoxPermitidos[0];
-            lblFiltro.innerText = `${unico.codigo} - ${unico.descricao}`;
+            lblFiltro.innerText = `${window.fmtCod(unico.codigo)} - ${unico.descricao}`;
             window.almoxarifadosSelecionados = [unico.id];
             if (btnFiltro) {
                 btnFiltro.onclick = null;
@@ -178,7 +185,7 @@ async function carregarFiltroAlmoxarifados(userId) {
         listaEl.innerHTML = almoxPermitidos.map(almox => `
             <label style="position: static; display: flex; align-items: center; gap: 8px; padding: 6px 8px; min-height: 28px; border-radius: 4px; margin: 0; cursor: pointer; font-size: 0.75rem; color: #334155; box-sizing: border-box; width: 100%;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
                 <input type="checkbox" class="chk-almox-item" value="${almox.id}" checked onchange="atualizarLabelFiltro()" style="cursor: pointer; flex-shrink: 0; margin: 0;">
-                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; text-align: left;" title="${almox.codigo} - ${almox.descricao}">${almox.codigo} - ${almox.descricao}</span>
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; text-align: left;" title="${window.fmtCod(almox.codigo)} - ${almox.descricao}">${window.fmtCod(almox.codigo)} - ${almox.descricao}</span>
             </label>
         `).join('');
 
@@ -382,7 +389,7 @@ async function carregarPainelPendenciasHome() {
                 const key = String(m.almoxarifado_id || 'sem-almox');
                 if (!mapaAlmoxMac[key]) {
                     const desc = m.almoxarifado
-                        ? `${m.almoxarifado.codigo} - ${m.almoxarifado.descricao}`
+                        ? `${window.fmtCod(m.almoxarifado.codigo)} - ${m.almoxarifado.descricao}`
                         : 'Almoxarifado não identificado';
                     mapaAlmoxMac[key] = {
                         almoxarifado_id: m.almoxarifado_id,
@@ -421,7 +428,7 @@ async function carregarPainelPendenciasHome() {
                 : listaReq.map(r => {
                     const cod = String(r.codigo || '').padStart(6, '0');
                     const etapa = r.status === 'PENDENTE' ? 'AGUARD. APROVAÇÃO' : 'AGUARD. ENVIO';
-                    const solicitante = r.requisitante ? `${r.requisitante.codigo} - ${r.requisitante.descricao}` : '-';
+                    const solicitante = r.requisitante ? `${window.fmtCod(r.requisitante.codigo)} - ${r.requisitante.descricao}` : '-';
                     return `
                         <div class="painel-pend-item" data-abrir-modulo="requisicoes">
                             <div class="painel-pend-item-topo">
@@ -553,9 +560,9 @@ window.abrirHistorico = async function(tabela, registroId) {
             window.db.from('usuarios').select('id, nome_completo'),
             window.db.from('produtos').select('id, codigo, descricao')
         ]);
-        if (resA.data) resA.data.forEach(a => window.almoxarifadosCacheMap[String(a.id).toLowerCase()] = `${a.codigo} - ${a.descricao}`);
+        if (resA.data) resA.data.forEach(a => window.almoxarifadosCacheMap[String(a.id).toLowerCase()] = `${window.fmtCod(a.codigo)} - ${a.descricao}`);
         if (resU.data) resU.data.forEach(u => window.usuariosCacheMap[String(u.id).toLowerCase()] = u.nome_completo);
-        if (resP.data) resP.data.forEach(p => window.produtosCacheMap[String(p.id).toLowerCase()] = `${p.codigo} - ${p.descricao}`);
+        if (resP.data) resP.data.forEach(p => window.produtosCacheMap[String(p.id).toLowerCase()] = `${window.fmtCod(p.codigo)} - ${p.descricao}`);
     } catch (e) { console.error("Erro cache histórico:", e); }
 
     const modal = document.getElementById('global-historico-modal');

@@ -100,7 +100,7 @@
             .sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR', { sensitivity: 'base' }));
 
         ordenados.forEach(a => {
-            html += `<option value="${a.id}">${a.codigo} - ${a.descricao}</option>`;
+            html += `<option value="${a.id}">${window.fmtCod(a.codigo)} - ${a.descricao}</option>`;
         });
 
         inAbastecedor.innerHTML = html;
@@ -119,15 +119,15 @@
         
         almoxarifadosRaw = data || [];
 
-        // Monta objetos enriquecidos com o nome do almoxarifado abastecedor correspondente
         almoxarifadosCompletos = almoxarifadosRaw.map(a => {
             let nomeAbast = 'Nenhum';
             if (a.almoxarifado_abastecedor_id) {
                 const pai = almoxarifadosRaw.find(x => x.id === a.almoxarifado_abastecedor_id);
-                if (pai) nomeAbast = `${pai.codigo} - ${pai.descricao}`;
+                if (pai) nomeAbast = `${window.fmtCod(pai.codigo)} - ${pai.descricao}`;
             }
             return {
                 ...a,
+                codigoFormatado: window.fmtCod(a.codigo),
                 abastecedorNome: nomeAbast
             };
         });
@@ -260,6 +260,13 @@
             listaFiltrada = listaFiltrada.filter(item => {
                 if (filtro.campo === 'status') return String(item.status) === filtro.valor;
                 if (filtro.campo === 'tipo') return String(item.tipo || '').toUpperCase() === filtro.valor;
+
+                if (filtro.campo === 'codigo') {
+                    const codRaw = String(item.codigo || '').toUpperCase();
+                    const codFmt = String(item.codigoFormatado || '').toUpperCase();
+                    if (filtro.exato) return codRaw === filtro.valor || codFmt === filtro.valor;
+                    return codRaw.includes(filtro.valor) || codFmt.includes(filtro.valor);
+                }
                 
                 const valorCampo = String(item[filtro.campo] || '').toUpperCase();
                 if (filtro.exato) return valorCampo === filtro.valor;
@@ -298,7 +305,6 @@
             }
 
             let botoesAcao = `<button class="btn-ver" data-id="${a.id}" title="Visualizar" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="eye" style="width: 14px;"></i></button>`;
-            
             botoesAcao += `<button class="btn-hist" data-id="${a.id}" title="Histórico" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="rotate-ccw" style="width: 14px;"></i></button>`;
             
             if (permissoesAcesso.edit) {
@@ -310,7 +316,7 @@
 
             return `
                 <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#fff7ed'" onmouseout="this.style.background='transparent'">
-                    <td style="padding: 0.6rem 1.25rem; font-weight: 700; color: var(--cnx-blue);">${a.codigo}</td>
+                    <td style="padding: 0.6rem 1.25rem; font-weight: 700; color: var(--cnx-blue);">${a.codigoFormatado}</td>
                     <td style="padding: 0.6rem 1.25rem;">${a.descricao}</td>
                     <td style="padding: 0.6rem 1.25rem;">${tipoBadge}</td>
                     <td style="padding: 0.6rem 1.25rem; color: #64748b; font-size: 0.8rem;">${a.cidade || '-'}</td>
@@ -494,6 +500,7 @@
                 if (error) throw new Error("Erro ao atualizar o almoxarifado: " + error.message);
             } else {
                 payload.status = 'ATIVO';
+                payload.responsavel = '';
                 const { error } = await window.db.from('almoxarifados').insert([payload]);
                 if (error) throw new Error("Erro ao cadastrar novo almoxarifado: " + error.message);
             }

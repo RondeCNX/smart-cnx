@@ -47,6 +47,7 @@
     let filtrosAtivos = [];
     let sortConfig = { key: 'codigo', direction: 'desc' };
 
+
     const btnNovaReq = moduloContent.querySelector('#btn-nova-req');
     const modalReq = moduloContent.querySelector('#modal-req');
     const modalTitulo = moduloContent.querySelector('#modal-titulo-req');
@@ -85,6 +86,7 @@
     let nomeUsuarioLogado = '';
     let isAdmin = false;
     let isGestor = false;
+    let acessoTodos = false;
     let meusAlmoxarifadosIds = []; 
     let almoxarifados = [];
     let produtos = [];
@@ -184,56 +186,89 @@
             if (!session) return;
             usuarioLogadoId = session.user.id;
 
-            const { data: user } = await window.db.from('usuarios').select('nome_completo, acesso_todos_almoxarifados, cargos(nome)').eq('id', usuarioLogadoId).single();
+            const { data: user, error: errUser } = await window.db
+                .from('usuarios')
+                .select('nome_completo, acesso_todos_almoxarifados, cargos(nome)')
+                .eq('id', usuarioLogadoId)
+                .single();
+
+            if (errUser) throw errUser;
+
             nomeUsuarioLogado = user?.nome_completo || '';
             const upperCargo = user?.cargos?.nome?.toUpperCase() || '';
             isAdmin = upperCargo === 'ADMINISTRADOR';
             isGestor = isAdmin || upperCargo.includes('SUPERVISOR');
+            acessoTodos = isAdmin || isGestor || !!user?.acesso_todos_almoxarifados;
 
             await buscarRequisicoes();
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error('Erro ao inicializar módulo de requisições:', e);
+            tbodyReqs.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem; color:#ef4444;">Erro ao carregar dados iniciais. Clique em atualizar.</td></tr>`;
+        }
     }
 
     async function buscarRequisicoes() {
         tbodyReqs.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>`;
         lucide.createIcons();
 
-        const { data: resAlmox } = await window.db.from('almoxarifados').select('*').eq('status', 'ATIVO').order('codigo');
-        almoxarifados = resAlmox || [];
-        
-        const { data: vincs } = await window.db.from('usuario_almoxarifados').select('almoxarifado_id').eq('usuario_id', usuarioLogadoId);
-        const acessosDiretos = vincs ? vincs.map(v => v.almoxarifado_id) : [];
-        meusAlmoxarifadosIds = isAdmin ? almoxarifados.map(a => a.id) : acessosDiretos;
+        try {
+            if (!usuarioLogadoId) {
+                const { data: { session } } = await window.db.auth.getSession();
+                if (!session) return;
+                usuarioLogadoId = session.user.id;
+            }
 
-        let query = window.db.from('requisicoes')
-            .select(`*, requisitante:almoxarifados!almoxarifado_requisitante_id(codigo, descricao), abastecedor:almoxarifados!almoxarifado_abastecedor_id(codigo, descricao), user_solic:usuarios!usuario_solicitante_id(nome_completo), user_atend:usuarios!usuario_atendente_id(nome_completo)`)
-            .order('codigo', { ascending: false });
+            const [resAlmox, resVincs] = await Promise.all([
+                window.db.from('almoxarifados').select('*').eq('status', 'ATIVO').order('codigo'),
+                window.db.from('usuario_almoxarifados').select('almoxarifado_id').eq('usuario_id', usuarioLogadoId)
+            ]);
 
-        if (!isGestor) {
-            const idsFmt = meusAlmoxarifadosIds.map(i => `"${i}"`).join(',');
-            if (idsFmt) query = query.or(`almoxarifado_requisitante_id.in.(${idsFmt}),almoxarifado_abastecedor_id.in.(${idsFmt})`);
-            else { todasRequisicoes = []; aplicarFiltrosEOrdenar(); return; }
+            if (resAlmox.error) throw resAlmox.error;
+            if (resVincs.error) throw resVincs.error;
+
+            almoxarifados = resAlmox.data || [];
+            const acessosDiretos = (resVincs.data || []).map(v => v.almoxarifado_id);
+            meusAlmoxarifadosIds = acessoTodos ? almoxarifados.map(a => a.id) : acessosDiretos;
+
+            let query = window.db.from('requisicoes')
+                .select(`*, requisitante:almoxarifados!almoxarifado_requisitante_id(codigo, descricao), abastecedor:almoxarifados!almoxarifado_abastecedor_id(codigo, descricao), user_solic:usuarios!usuario_solicitante_id(nome_completo), user_atend:usuarios!usuario_atendente_id(nome_completo)`)
+                .order('codigo', { ascending: false });
+
+            if (!acessoTodos) {
+                if (meusAlmoxarifadosIds.length > 0) {
+                    const idsFmt = meusAlmoxarifadosIds.join(',');
+                    query = query.or(`almoxarifado_requisitante_id.in.(${idsFmt}),almoxarifado_abastecedor_id.in.(${idsFmt})`);
+                } else {
+                    todasRequisicoes = [];
+                    if (lblTotalGeral) lblTotalGeral.innerText = '0';
+                    aplicarFiltrosEOrdenar();
+                    return;
+                }
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+
+            todasRequisicoes = (data || []).map(r => ({
+                ...r,
+                codigoFormatado: String(r.codigo).padStart(6, '0'),
+                requisitanteNome: r.requisitante ? `${window.fmtCod(r.requisitante.codigo)} - ${r.requisitante.descricao}` : 'Desconhecido',
+                abastecedorNome: r.abastecedor ? `${window.fmtCod(r.abastecedor.codigo)} - ${r.abastecedor.descricao}` : 'Desconhecido',
+                solicitanteNome: r.user_solic ? r.user_solic.nome_completo : 'Desconhecido',
+                atendenteNome: r.user_atend ? r.user_atend.nome_completo : 'Aguardando atendimento'
+            }));
+
+            if (lblTotalGeral) lblTotalGeral.innerText = todasRequisicoes.length;
+            
+            if (!Array.from(inputStatus.options).find(o => o.value === 'DIVERGENCIA')) {
+                inputStatus.innerHTML += `<option value="DIVERGENCIA">COM DIVERGÊNCIA</option>`;
+            }
+            
+            aplicarFiltrosEOrdenar();
+        } catch (err) {
+            console.error('Erro ao buscar requisições:', err);
+            tbodyReqs.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem; color:#ef4444;">Erro ao buscar requisições. Verifique o console ou clique em atualizar.</td></tr>`;
         }
-
-        const { data, error } = await query;
-        if (error) { tbodyReqs.innerHTML = `<tr><td colspan="6" style="text-align:center; color:red;">Erro ao buscar requisições.</td></tr>`; return; }
-
-        todasRequisicoes = (data || []).map(r => ({
-            ...r,
-            codigoFormatado: String(r.codigo).padStart(6, '0'),
-            requisitanteNome: r.requisitante ? `${r.requisitante.codigo} - ${r.requisitante.descricao}` : 'Desconhecido',
-            abastecedorNome: r.abastecedor ? `${r.abastecedor.codigo} - ${r.abastecedor.descricao}` : 'Desconhecido',
-            solicitanteNome: r.user_solic ? r.user_solic.nome_completo : 'Desconhecido',
-            atendenteNome: r.user_atend ? r.user_atend.nome_completo : 'Aguardando atendimento'
-        }));
-
-        if (lblTotalGeral) lblTotalGeral.innerText = todasRequisicoes.length;
-        
-        if(!Array.from(inputStatus.options).find(o => o.value === 'DIVERGENCIA')){
-            inputStatus.innerHTML += `<option value="DIVERGENCIA">COM DIVERGÊNCIA</option>`;
-        }
-        
-        aplicarFiltrosEOrdenar();
     }
 
     function getStatusBadge(status) {
@@ -665,7 +700,13 @@
             if (tipoConsultaAtual === 'almoxarifado_req') lista = almoxarifados.filter(a => meusAlmoxarifadosIds.includes(a.id) && a.almoxarifado_abastecedor_id);
             else lista = almoxarifados.filter(a => meusAlmoxarifadosIds.includes(a.id));
 
-            if (termo) lista = lista.filter(a => a.codigo.includes(termo) || a.descricao.includes(termo));
+            if (termo) {
+                lista = lista.filter(a =>
+                    String(a.codigo || '').toUpperCase().includes(termo) ||
+                    window.fmtCod(a.codigo).toUpperCase().includes(termo) ||
+                    String(a.descricao || '').toUpperCase().includes(termo)
+                );
+            }
 
             lista.sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR', { sensitivity: 'base' }));
             
@@ -673,15 +714,21 @@
             else {
                 html = lista.map(a => `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 0.6rem; font-weight:700;">${a.codigo}</td>
+                        <td style="padding: 0.6rem; font-weight:700;">${window.fmtCod(a.codigo)}</td>
                         <td style="padding: 0.6rem;">${a.descricao}</td>
                         <td style="padding: 0.6rem; text-align: center;"><button type="button" onclick="window.selecionarAlmoxConsulta('${a.id}')" style="background:none; border:none; cursor:pointer;" title="Selecionar"><i data-lucide="check-circle" style="color:var(--cnx-blue); width:20px;"></i></button></td>
                     </tr>
                 `).join('');
             }
         } else {
-            let lista = produtos;
-            if (termo) lista = lista.filter(p => p.codigo.includes(termo) || p.descricao.includes(termo));
+            let lista = [...produtos];
+            if (termo) {
+                lista = lista.filter(p =>
+                    String(p.codigo || '').toUpperCase().includes(termo) ||
+                    window.fmtCod(p.codigo).toUpperCase().includes(termo) ||
+                    String(p.descricao || '').toUpperCase().includes(termo)
+                );
+            }
 
             lista.sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR', { sensitivity: 'base' }));
             
@@ -694,7 +741,7 @@
                         : `<button type="button" onclick="window.selecionarProdutoConsulta('${p.id}')" style="background:none; border:none; cursor:pointer;" title="Adicionar"><i data-lucide="plus-circle" style="color:var(--cnx-orange); width:22px;"></i></button>`;
                     return `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 0.6rem; font-weight:700;">${p.codigo}</td>
+                        <td style="padding: 0.6rem; font-weight:700;">${window.fmtCod(p.codigo)}</td>
                         <td style="padding: 0.6rem;">${p.descricao}</td>
                         <td style="padding: 0.6rem; text-align: center; vertical-align: middle;">${btn}</td>
                     </tr>
@@ -711,17 +758,17 @@
         if (a) {
             if (tipoConsultaAtual === 'almoxarifado_req') {
                 inReqId.value = a.id;
-                inReqDesc.value = `${a.codigo} - ${a.descricao}`;
+                inReqDesc.value = `${window.fmtCod(a.codigo)} - ${a.descricao}`;
                 const abast = almoxarifados.find(x => x.id === a.almoxarifado_abastecedor_id);
                 if (abast) {
                     inAbastId.value = abast.id;
-                    inAbastDesc.value = `${abast.codigo} - ${abast.descricao}`;
+                    inAbastDesc.value = `${window.fmtCod(abast.codigo)} - ${abast.descricao}`;
                 } else {
                     inAbastId.value = ''; inAbastDesc.value = 'Sem abastecedor fixo.';
                 }
             } else if (tipoConsultaAtual === 'almoxarifado_abast') {
                 inAbastId.value = a.id;
-                inAbastDesc.value = `${a.codigo} - ${a.descricao}`;
+                inAbastDesc.value = `${window.fmtCod(a.codigo)} - ${a.descricao}`;
             }
             formFoiAlterado = true;
         }
@@ -732,7 +779,7 @@
         const p = produtos.find(x => x.id === id);
         if (!p) return;
         
-        itensReqCache.push({ produto_id: p.id, codigo: p.codigo, descricao: p.descricao, qtd_solicitada: 1, qtd_aprovada: null, qtd_recebida: null, id: null });
+        itensReqCache.push({ produto_id: p.id, codigo: window.fmtCod(p.codigo), descricao: p.descricao, qtd_solicitada: 1, qtd_aprovada: null, qtd_recebida: null, id: null });
         formFoiAlterado = true;
         renderizarItensRequisicao();
         modalConsulta.style.display = 'none'; 
@@ -834,7 +881,7 @@
                 itensReqCache = itens.map(i => ({
                     id: i.id,
                     produto_id: i.produto_id,
-                    codigo: i.produtos ? i.produtos.codigo : '-',
+                    codigo: i.produtos ? window.fmtCod(i.produtos.codigo) : '-',
                     descricao: i.produtos ? i.produtos.descricao : 'Item Excluído',
                     qtd_solicitada: i.qtd_solicitada,
                     qtd_aprovada: i.qtd_aprovada,
@@ -1244,7 +1291,7 @@
             const { data: itensDB } = await window.db.from('requisicao_itens').select('qtd_solicitada, qtd_aprovada, qtd_enviada, produtos(codigo, descricao)').eq('requisicao_id', reqIdParaAnexo);
             const colunas = [["Código", "Produto", "Qtd Enviada", "Check"]];
             const linhas = (itensDB || []).map(i => [
-                i.produtos?.codigo || '-', 
+                i.produtos?.codigo ? window.fmtCod(i.produtos.codigo) : '-', 
                 i.produtos?.descricao || '-', 
                 i.qtd_enviada !== null ? i.qtd_enviada : (i.qtd_aprovada !== null ? i.qtd_aprovada : i.qtd_solicitada), 
                 ""

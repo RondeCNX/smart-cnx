@@ -583,7 +583,13 @@
                 ? [...almoxarifados]
                 : almoxarifados.filter(a => almoxarifadosVinculadosIds.includes(a.id));
 
-            if (termo) lista = lista.filter(a => a.codigo.includes(termo) || a.descricao.includes(termo));
+            if (termo) {
+                lista = lista.filter(a =>
+                    String(a.codigo || '').toUpperCase().includes(termo) ||
+                    window.fmtCod(a.codigo).toUpperCase().includes(termo) ||
+                    String(a.descricao || '').toUpperCase().includes(termo)
+                );
+            }
 
             lista.sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR', { sensitivity: 'base' }));
             
@@ -591,7 +597,7 @@
             else {
                 html = lista.map(a => `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 0.6rem; font-weight:700;">${a.codigo}</td>
+                        <td style="padding: 0.6rem; font-weight:700;">${window.fmtCod(a.codigo)}</td>
                         <td style="padding: 0.6rem;">${a.descricao}</td>
                         <td style="padding: 0.6rem; text-align: center;"><button type="button" onclick="window.selecionarAlmoxEmp('${a.id}')" style="background:none; border:none; cursor:pointer;" title="Selecionar"><i data-lucide="check-circle" style="color:var(--cnx-blue); width:20px;"></i></button></td>
                     </tr>
@@ -599,7 +605,13 @@
             }
         } else {
             let lista = [...produtos];
-            if (termo) lista = lista.filter(p => p.codigo.includes(termo) || p.descricao.includes(termo));
+            if (termo) {
+                lista = lista.filter(p =>
+                    String(p.codigo || '').toUpperCase().includes(termo) ||
+                    window.fmtCod(p.codigo).toUpperCase().includes(termo) ||
+                    String(p.descricao || '').toUpperCase().includes(termo)
+                );
+            }
 
             lista.sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR', { sensitivity: 'base' }));
             
@@ -612,7 +624,7 @@
                         : `<button type="button" onclick="window.selecionarProdutoEmp('${p.id}')" style="background:none; border:none; cursor:pointer;" title="Adicionar"><i data-lucide="plus-circle" style="color:var(--cnx-orange); width:22px;"></i></button>`;
                     return `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 0.6rem; font-weight:700;">${p.codigo}</td>
+                        <td style="padding: 0.6rem; font-weight:700;">${window.fmtCod(p.codigo)}</td>
                         <td style="padding: 0.6rem;">${p.descricao}</td>
                         <td style="padding: 0.6rem; text-align: center; vertical-align: middle;">${btn}</td>
                     </tr>
@@ -628,7 +640,7 @@
         const a = almoxarifados.find(x => x.id === id);
         if (a) {
             inEmpId.value = a.id;
-            inEmpDesc.value = `${a.codigo} - ${a.descricao}`;
+            inEmpDesc.value = `${window.fmtCod(a.codigo)} - ${a.descricao}`;
             formFoiAlterado = true;
         }
         modalConsulta.style.display = 'none'; 
@@ -637,12 +649,11 @@
     window.selecionarProdutoEmp = function(id) {
         const p = produtos.find(x => x.id === id);
         if (!p) return;
-        itensEmpCache.push({ produto_id: p.id, codigo: p.codigo, descricao: p.descricao, qtd_emprestada: 1, status_item: 'PENDENTE', status_item_original: 'PENDENTE', id: null });
+        itensEmpCache.push({ produto_id: p.id, codigo: window.fmtCod(p.codigo), descricao: p.descricao, qtd_emprestada: 1, status_item: 'PENDENTE', status_item_original: 'PENDENTE', id: null });
         formFoiAlterado = true;
         renderizarItensEmp();
         modalConsulta.style.display = 'none'; 
     };
-
     // ================= FORMULÁRIO DE EMPRÉSTIMO =================
     btnNovoEmp.addEventListener('click', () => {
         if (!permissoesAcesso.create) {
@@ -716,7 +727,7 @@
             badgeStatusModal.innerHTML = getStatusBadge(r.statusCalculado);
             
             inEmpId.value = r.almoxarifado_id;
-            inEmpDesc.value = r.almoxarifado ? `${r.almoxarifado.codigo} - ${r.almoxarifado.descricao}` : '';
+            inEmpDesc.value = r.almoxarifado ? `${window.fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : '';
             inResponsavel.value = r.responsavel;
             inDataSaida.value = r.data_emprestimo ? r.data_emprestimo.split('T')[0] : '';
             inDataPrev.value = r.previsao_devolucao ? r.previsao_devolucao.split('T')[0] : '';
@@ -727,7 +738,7 @@
                 itensEmpCache = itens.map(i => ({
                     id: i.id,
                     produto_id: i.produto_id,
-                    codigo: i.produtos ? i.produtos.codigo : '-',
+                    codigo: i.produtos ? window.fmtCod(i.produtos.codigo) : '-',
                     descricao: i.produtos ? i.produtos.descricao : 'Excluído',
                     qtd_emprestada: i.qtd_emprestada,
                     status_item: i.status || 'PENDENTE',
@@ -1105,7 +1116,7 @@
             const nomeCriador = r.usuarios ? r.usuarios.nome_completo : 'Sistema';
             doc.text(`Criado por: ${nomeCriador}`, margemEsq, 145);
             
-            const codigoAlmox = r.almoxarifado ? r.almoxarifado.codigo : '';
+            const codigoAlmox = r.almoxarifado ? window.fmtCod(r.almoxarifado.codigo) : '';
             const nomeAlmox = r.almoxarifado ? r.almoxarifado.descricao : 'Desconhecida';
             doc.text(`Origem: ${codigoAlmox} - ${nomeAlmox}`, margemDir, 145, { align: 'right' });
 
@@ -1113,7 +1124,7 @@
             
             const colunas = [["ID Equipamento", "Descrição", "Qtd"]];
             const linhas = (itensDB || []).map(i => [
-                i.produtos?.codigo || '-', 
+                i.produtos?.codigo ? window.fmtCod(i.produtos.codigo) : '-', 
                 i.produtos?.descricao || '-', 
                 i.qtd_emprestada 
             ]);
