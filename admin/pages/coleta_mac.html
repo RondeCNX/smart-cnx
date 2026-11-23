@@ -17,7 +17,8 @@
                 <option value="mac">MAC (Gpon)</option>
                 <option value="numero_serie">Nº de Série (MAC)</option>
                 <option value="numero_os">Nº da O.S.</option>
-                <option value="almoxarifadoDesc">Almoxarifado</option>
+                <option value="almoxarifadoDesc">Almox. Origem</option>
+                <option value="almoxarifadoDestinoDesc">Almox. Destino</option>
                 <option value="produtoDesc">Produto (Modelo)</option>
                 <option value="status">Status</option>
                 <option value="data">Data de Coleta</option>
@@ -39,7 +40,6 @@
         
         <div style="display: flex; gap: 8px;">
             <button class="filter-btn add" id="btn-add-filtro"><i data-lucide="list-plus"></i> Adicionar</button>
-            <!-- CORREÇÃO: Botão de Aplicar adicionado -->
             <button class="filter-btn apply" id="btn-aplicar-filtro"><i data-lucide="check"></i> Aplicar</button>
             <button class="filter-btn clear" id="btn-limpar-filtros"><i data-lucide="eraser"></i> Limpar</button>
         </div>
@@ -65,18 +65,19 @@
         <table class="data-table" style="width: 100%; table-layout: fixed;">
             <thead>
                 <tr>
-                    <th class="sort-col" data-col="data_coleta" style="width: 90px; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>Data <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="numero_os" style="width: 85px; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>O.S. <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="almoxarifadoDesc" style="width: 19%; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>Almoxarifado <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="produtoDesc" style="width: 18%; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>Produto / Modelo <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="mac" style="width: 15%; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>MAC (Gpon) <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="numero_serie" style="width: 13%; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>Nº Série (MAC) <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="status" style="width: 95px; text-align: center; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;"><div>Status <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th style="text-align: center; width: 110px; padding: 0.8rem 0.6rem; background: var(--cnx-blue); color: white;">Ações</th>
+                    <th class="sort-col" data-col="data_coleta" style="width: 82px; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>Data <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="numero_os" style="width: 78px; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>O.S. <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="almoxarifadoDesc" style="width: 15%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>Almox. Origem <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="almoxarifadoDestinoDesc" style="width: 15%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>Almox. Destino <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="produtoDesc" style="width: 15%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>Produto / Modelo <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="mac" style="width: 13%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>MAC (Gpon) <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="numero_serie" style="width: 12%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>Nº Série <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="status" style="width: 88px; text-align: center; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>Status <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th style="text-align: center; width: 105px; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;">Ações</th>
                 </tr>
             </thead>
             <tbody id="tbody-coletas">
-                <tr><td colspan="8" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>
+                <tr><td colspan="9" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>
             </tbody>
         </table>
     </div>
@@ -128,12 +129,23 @@
                         <input type="text" id="coleta-os" class="input-standard input-upper" placeholder="EX: OS-12345" style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700;">
                     </div>
 
-                    <div class="form-group">
-                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Almoxarifado <span style="color:red;">*</span></label>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="text" id="coleta-almox-desc" class="input-standard" readonly placeholder="Selecione o almoxarifado..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700; background: #f8fafc; cursor: pointer;">
-                            <input type="hidden" id="coleta-almox-id">
-                            <button type="button" id="btn-busca-almox" class="btn-acao-busca" style="background: var(--cnx-blue); color: white; border: none; padding: 0 1rem; border-radius: 4px; cursor: pointer;"><i data-lucide="search" style="width: 16px;"></i></button>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Almoxarifado de Origem <span style="color:red;">*</span></label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="coleta-almox-desc" class="input-standard" readonly placeholder="Selecione a origem..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700; background: #f8fafc; cursor: pointer;">
+                                <input type="hidden" id="coleta-almox-id">
+                                <button type="button" id="btn-busca-almox" class="btn-acao-busca" style="background: var(--cnx-blue); color: white; border: none; padding: 0 1rem; border-radius: 4px; cursor: pointer;"><i data-lucide="search" style="width: 16px;"></i></button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Almoxarifado de Destino <span style="color:red;">*</span></label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="coleta-almox-destino-desc" class="input-standard" readonly placeholder="Selecione o destino..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700; background: #f8fafc; cursor: pointer;">
+                                <input type="hidden" id="coleta-almox-destino-id">
+                                <button type="button" id="btn-busca-almox-destino" class="btn-acao-busca" style="background: var(--cnx-blue); color: white; border: none; padding: 0 1rem; border-radius: 4px; cursor: pointer;"><i data-lucide="search" style="width: 16px;"></i></button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -144,12 +156,12 @@
                     <div class="form-group" style="margin-bottom: 1rem;">
                         <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Produto / Modelo <span style="color:red;">*</span></label>
                         <div style="display: flex; gap: 8px;">
-                            <input type="text" id="coleta-produto-cod" class="input-standard input-upper" placeholder="Código" title="Digite o ID do produto para autocompletar" style="width: 120px; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700; color: var(--cnx-blue);">
+                            <input type="text" id="coleta-produto-cod" class="input-standard input-upper" placeholder="Código" title="Digite o código do produto para autocompletar" style="width: 120px; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700; color: var(--cnx-blue);">
                             <button type="button" id="btn-busca-produto" class="btn-acao-busca" style="background: var(--cnx-blue); color: white; border: none; padding: 0 0.8rem; border-radius: 4px; cursor: pointer;"><i data-lucide="search" style="width: 16px;"></i></button>
                             <input type="text" id="coleta-produto-desc" class="input-standard" readonly placeholder="Descrição do equipamento..." style="flex: 1; padding: 0.6rem; border: 1px dashed #cbd5e1; border-radius: 4px; font-weight: 700; background: #f8fafc; color: #64748b;">
                             <input type="hidden" id="coleta-produto-id">
                         </div>
-                        <div style="font-size: 0.65rem; color: #94a3b8; margin-top: 4px;">Pode digitar o código do produto e pressionar Tab, ou usar a lupa.</div>
+                        <div style="font-size: 0.65rem; color: #94a3b8; margin-top: 4px;">Pode digitar o código do produto e pressionar Tab/Enter, ou usar a lupa.</div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
@@ -192,7 +204,7 @@
             <div style="padding: 1rem; background: white; border-bottom: 1px solid #e2e8f0; flex-shrink: 0;">
                 <input type="text" id="input-busca-consulta-coleta" class="input-standard input-upper" placeholder="Digite Código ou Descrição para buscar..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 600;">
             </div>
-            <div class="table-scroll-wrapper" style="flex: 1; border: none; max-height: none;">
+            <div class="table-scroll-wrapper" style="flex: 1; min-height: 0; overflow-y: auto; border: none; max-height: none;">
                 <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.8rem;">
                     <thead style="background: #f8fafc; color: #64748b;">
                         <tr id="thead-consulta-coleta"></tr>

@@ -17,7 +17,8 @@
                 <option value="id_entrada_erp">ID Entrada IXC</option>
                 <option value="id_inventario_erp">ID Inventário IXC</option>
                 <option value="mac">MAC (Gpon) / Nº de Série</option>
-                <option value="almoxarifadoDesc">Almoxarifado</option>
+                <option value="almoxarifadoDesc">Almox. Origem</option>
+                <option value="almoxarifadoDestinoDesc">Almox. Destino</option>
                 <option value="data">Data do Ajuste</option>
             </select>
             
@@ -57,23 +58,24 @@
             <thead>
                 <tr>
                     <th class="sort-col" data-col="data_ajuste" style="width: 90px; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Data <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="id_entrada_erp" style="width: 130px; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>ID Entrada IXC <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="id_inventario_erp" style="width: 130px; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>ID Inventário IXC <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="almoxarifadoDesc" style="padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Almoxarifado <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th style="padding: 0.8rem; background: var(--cnx-blue); color: white; text-align: center; width: 100px;">Qtd. Equip.</th>
+                    <th class="sort-col" data-col="id_entrada_erp" style="width: 120px; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>ID Entrada IXC <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="id_inventario_erp" style="width: 120px; padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>ID Inventário IXC <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="almoxarifadoDesc" style="padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Almox. Origem <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="almoxarifadoDestinoDesc" style="padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Almox. Destino <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th style="padding: 0.8rem; background: var(--cnx-blue); color: white; text-align: center; width: 90px;">Qtd. Equip.</th>
                     <th class="sort-col" data-col="supervisorNome" style="padding: 0.8rem; background: var(--cnx-blue); color: white;"><div>Supervisor <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
                     <th style="text-align: center; width: 100px; padding: 0.8rem; background: var(--cnx-blue); color: white;">Ações</th>
                 </tr>
             </thead>
             <tbody id="tbody-ajustes">
-                <tr><td colspan="7" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>
+                <tr><td colspan="8" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>
             </tbody>
         </table>
     </div>
 
     <!-- MODAL PRINCIPAL: FORMULÁRIO DE AJUSTE -->
     <div class="modal-overlay" id="modal-ajuste" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); z-index: 9999; align-items: center; justify-content: center; padding: 1rem;">
-        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 950px; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden;">
+        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 1150px; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden;">
             
             <div class="modal-header" style="background: var(--cnx-blue); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
                 <h3 id="modal-titulo-ajuste" style="margin: 0; color: white; font-size: 1.1rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
@@ -94,13 +96,13 @@
                 <div id="form-tab-dados" class="tab-form-content" style="display: block;">
                     
                     <div class="form-group" style="margin-bottom: 1.5rem;">
-                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Almoxarifado do Estoque <span style="color:red;">*</span></label>
+                        <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Almoxarifado de Origem <span style="color:red;">*</span></label>
                         <div style="display: flex; gap: 8px;">
-                            <input type="text" id="ajuste-almox-desc" class="input-standard" readonly placeholder="Selecione o almoxarifado..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700; background: #f8fafc; cursor: pointer;">
+                            <input type="text" id="ajuste-almox-desc" class="input-standard" readonly placeholder="Selecione o almoxarifado de origem..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 700; background: #f8fafc; cursor: pointer;">
                             <input type="hidden" id="ajuste-almox-id">
                             <button type="button" id="btn-busca-almox" class="btn-acao-busca" style="background: var(--cnx-blue); color: white; border: none; padding: 0 1rem; border-radius: 4px; cursor: pointer;"><i data-lucide="search" style="width: 16px;"></i></button>
                         </div>
-                        <div style="font-size: 0.65rem; color: #94a3b8; margin-top: 4px;">Selecione o Almoxarifado para visualizar os MACs pendentes na Aba 2.</div>
+                        <div style="font-size: 0.65rem; color: #94a3b8; margin-top: 4px;">Selecione o Almoxarifado de Origem para visualizar os MACs pendentes na Aba 2.</div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
@@ -132,7 +134,7 @@
                         <div style="font-size: 0.75rem; font-weight: 800; color: var(--cnx-orange);">Equipamentos Selecionados: <span id="lbl-total-macs-sel">0</span></div>
                     </div>
 
-                    <div class="table-scroll-wrapper" style="max-height: 350px; border: 1px solid #cbd5e1;">
+                    <div class="table-scroll-wrapper" style="max-height: 350px; overflow-y: auto; border: 1px solid #cbd5e1;">
                         <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.8rem;">
                             <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
                                 <tr>
@@ -141,12 +143,14 @@
                                     </th>
                                     <th style="padding: 0.6rem; color: #334155;">Produto Consumo</th>
                                     <th style="padding: 0.6rem; color: #334155;">MAC / Série</th>
+                                    <th style="padding: 0.6rem; color: #334155;">Almox. Origem</th>
+                                    <th style="padding: 0.6rem; color: #334155;">Almox. Destino</th>
                                     <th style="padding: 0.6rem; color: #334155;">O.S. / Data</th>
-                                    <th style="padding: 0.6rem; color: var(--cnx-blue); background: #f0f9ff; border-left: 1px solid #bae6fd; width: 180px;">ID Patrimônio<span style="color:red;">*</span></th>
+                                    <th style="padding: 0.6rem; color: var(--cnx-blue); background: #f0f9ff; border-left: 1px solid #bae6fd; width: 160px;">ID Patrimônio<span style="color:red;">*</span></th>
                                 </tr>
                             </thead>
                             <tbody id="tbody-itens-pendentes">
-                                <tr><td colspan="5" style="text-align: center; padding: 2rem; color: #94a3b8;">Selecione um Almoxarifado na Aba 1 para listar os MACs pendentes.</td></tr>
+                                <tr><td colspan="7" style="text-align: center; padding: 2rem; color: #94a3b8;">Selecione um Almoxarifado de Origem na Aba 1 para listar os MACs pendentes.</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -173,7 +177,7 @@
             <div style="padding: 1rem; background: white; border-bottom: 1px solid #e2e8f0; flex-shrink: 0;">
                 <input type="text" id="input-busca-consulta-ajuste" class="input-standard input-upper" placeholder="Digite Código ou Descrição..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 600;">
             </div>
-            <div class="table-scroll-wrapper" style="flex: 1; border: none; max-height: none;">
+            <div class="table-scroll-wrapper" style="flex: 1; min-height: 0; overflow-y: auto; border: none; max-height: none;">
                 <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.8rem;">
                     <thead style="background: #f8fafc; color: #64748b;">
                         <tr><th style="padding: 0.6rem; width: 80px; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Código</th><th style="padding: 0.6rem; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Descrição</th><th style="padding: 0.6rem; width: 60px; text-align:center; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Ação</th></tr>

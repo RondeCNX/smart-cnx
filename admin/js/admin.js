@@ -234,7 +234,6 @@ async function carregarPainelPendenciasHome() {
     const podeAjusteMac = window.temPermissao('ajuste_estoque', 'view');
     const podeRequisicoes = window.temPermissao('requisicoes', 'view');
 
-    // Se o usuário não tem acesso a nenhum dos dois módulos, não monta nem exibe o painel
     if (!podeAjusteMac && !podeRequisicoes) {
         document.getElementById('painel-pendencias-home')?.classList.remove('visivel');
         return;
@@ -338,19 +337,20 @@ async function carregarPainelPendenciasHome() {
         let listaMac = [];
         let listaReq = [];
 
-        // 1. Ajustes MAC pendentes (somente se tiver permissão)
+        // 1. Ajustes MAC pendentes (especificando !almoxarifado_id para evitar ambiguidade com almoxarifado_destino_id)
         if (podeAjusteMac && (!filtroRestrito || almoxIds.length > 0)) {
             let qMac = window.db
                 .from('coletas_mac')
-                .select('id, almoxarifado_id, almoxarifado:almoxarifados(codigo, descricao)')
+                .select('id, almoxarifado_id, almoxarifado:almoxarifados!almoxarifado_id(codigo, descricao)')
                 .eq('status', 'PENDENTE');
 
             if (filtroRestrito) qMac = qMac.in('almoxarifado_id', almoxIds);
-            const { data: macs } = await qMac;
+            const { data: macs, error: errMac } = await qMac;
+            if (errMac) console.error('Erro ao buscar MACs pendentes no painel:', errMac);
             listaMac = macs || [];
         }
 
-        // 2. Requisições aguardando aprovação ou envio (somente se tiver permissão)
+        // 2. Requisições aguardando aprovação ou envio
         if (podeRequisicoes && (!filtroRestrito || almoxIds.length > 0)) {
             let qReq = window.db
                 .from('requisicoes')
@@ -363,7 +363,8 @@ async function carregarPainelPendenciasHome() {
                 const idsFmt = almoxIds.map(id => `"${id}"`).join(',');
                 qReq = qReq.or(`almoxarifado_requisitante_id.in.(${idsFmt}),almoxarifado_abastecedor_id.in.(${idsFmt})`);
             }
-            const { data: reqs } = await qReq;
+            const { data: reqs, error: errReq } = await qReq;
+            if (errReq) console.error('Erro ao buscar requisições pendentes no painel:', errReq);
             listaReq = reqs || [];
         }
 

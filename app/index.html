@@ -59,13 +59,22 @@
                         <i data-lucide="scan-barcode"></i>
                         <span>Nova Conferência de MAC</span>
                     </div>
-                    <p class="m-card-desc">Selecione o almoxarifado para iniciar a captura em lote via câmera.</p>
+                    <p class="m-card-desc">Selecione os almoxarifados de origem e destino para iniciar a captura em lote via câmera.</p>
 
                     <div class="m-field">
-                        <label>Almoxarifado *</label>
+                        <label>Almoxarifado de Origem *</label>
                         <input type="hidden" id="col-almoxarifado">
                         <button type="button" class="m-picker-btn" id="btn-pick-col-almox">
-                            <span id="lbl-pick-col-almox" class="m-picker-placeholder">Toque para buscar almoxarifado...</span>
+                            <span id="lbl-pick-col-almox" class="m-picker-placeholder">Toque para buscar origem...</span>
+                            <i data-lucide="search"></i>
+                        </button>
+                    </div>
+
+                    <div class="m-field">
+                        <label>Almoxarifado de Destino *</label>
+                        <input type="hidden" id="col-almoxarifado-destino">
+                        <button type="button" class="m-picker-btn" id="btn-pick-col-almox-destino">
+                            <span id="lbl-pick-col-almox-destino" class="m-picker-placeholder">Toque para buscar destino...</span>
                             <i data-lucide="search"></i>
                         </button>
                     </div>
@@ -86,8 +95,9 @@
                         <div>
                             <small id="lbl-conf-tipo">ESTOQUE</small>
                             <strong id="lbl-conf-almox">-</strong>
+                            <small id="lbl-conf-almox-destino" style="display:block; margin-top:2px; opacity:0.9;">Destino: -</small>
                         </div>
-                        <button type="button" id="btn-trocar-almox" class="m-btn-ghost-sm" title="Trocar Almoxarifado">
+                        <button type="button" id="btn-trocar-almox" class="m-btn-ghost-sm" title="Trocar Almoxarifados">
                             <i data-lucide="repeat"></i>
                         </button>
                     </div>

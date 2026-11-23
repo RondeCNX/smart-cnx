@@ -52,6 +52,7 @@
     let usuarioLogadoId = null;
     let isAdmin = false;
     let isGestor = false;
+    let acessoTodos = false;
     let permissoesAcesso = { view: false, create: false, edit: false, delete: false };
     let meusAlmoxarifadosIds = [];
     
@@ -113,18 +114,31 @@
             if (!session) return;
             usuarioLogadoId = session.user.id;
 
-            const { data: user } = await window.db.from('usuarios').select('acesso_todos_almoxarifados, cargos(nome)').eq('id', usuarioLogadoId).single();
+            const { data: user } = await window.db
+                .from('usuarios')
+                .select('acesso_todos_almoxarifados, cargos(nome)')
+                .eq('id', usuarioLogadoId)
+                .single();
+
             const upperCargo = user?.cargos?.nome?.toUpperCase() || '';
             isAdmin = upperCargo === 'ADMINISTRADOR';
             isGestor = isAdmin || upperCargo.includes('SUPERVISOR');
+            acessoTodos = isAdmin || isGestor || !!user?.acesso_todos_almoxarifados;
 
-            const { data: vincs } = await window.db.from('usuario_almoxarifados').select('almoxarifado_id').eq('usuario_id', usuarioLogadoId);
+            const { data: vincs } = await window.db
+                .from('usuario_almoxarifados')
+                .select('almoxarifado_id')
+                .eq('usuario_id', usuarioLogadoId);
             const acessosDiretos = vincs ? vincs.map(v => v.almoxarifado_id) : [];
             
-            const { data: resAlmox } = await window.db.from('almoxarifados').select('*').eq('status', 'ATIVO').order('codigo');
+            const { data: resAlmox } = await window.db
+                .from('almoxarifados')
+                .select('*')
+                .eq('status', 'ATIVO')
+                .order('descricao');
             almoxarifados = resAlmox || [];
             
-            meusAlmoxarifadosIds = (isAdmin || isGestor) ? almoxarifados.map(a => a.id) : acessosDiretos;
+            meusAlmoxarifadosIds = acessoTodos ? almoxarifados.map(a => a.id) : acessosDiretos;
 
             await buscarAjustes();
             await verificarAutoAbrirNovoAjuste();
@@ -132,28 +146,47 @@
     }
 
     async function buscarAjustes() {
-        tbodyAjustes.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>`;
+        tbodyAjustes.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>`;
         lucide.createIcons();
 
         let query = window.db.from('ajustes_estoque')
-            .select(`*, almoxarifado:almoxarifados(codigo, descricao), usuario:usuarios!usuario_supervisor_id(nome_completo), coletas:coletas_mac(id, mac, numero_serie)`)
+            .select(`
+                *,
+                almoxarifado:almoxarifados(codigo, descricao),
+                usuario:usuarios!usuario_supervisor_id(nome_completo),
+                coletas:coletas_mac(id, mac, numero_serie, almoxarifado_destino:almoxarifados!almoxarifado_destino_id(codigo, descricao))
+            `)
             .order('created_at', { ascending: false });
 
-        if (!isGestor) {
-            const idsFmt = meusAlmoxarifadosIds.map(i => `"${i}"`).join(',');
-            if (idsFmt) query = query.in('almoxarifado_id', meusAlmoxarifadosIds);
+        if (!acessoTodos) {
+            if (meusAlmoxarifadosIds.length > 0) query = query.in('almoxarifado_id', meusAlmoxarifadosIds);
             else { todosAjustes = []; aplicarFiltrosEOrdenar(); return; }
         }
 
         const { data, error } = await query;
-        if (error) { tbodyAjustes.innerHTML = `<tr><td colspan="7" style="text-align:center; color:red;">Erro ao buscar ajustes.</td></tr>`; return; }
+        if (error) {
+            console.error('Erro ao buscar ajustes:', error);
+            tbodyAjustes.innerHTML = `<tr><td colspan="8" style="text-align:center; color:red;">Erro ao buscar ajustes.</td></tr>`;
+            return;
+        }
 
-        todosAjustes = (data || []).map(r => ({
-            ...r,
-            almoxarifadoDesc: r.almoxarifado ? `${r.almoxarifado.codigo} - ${r.almoxarifado.descricao}` : 'Desconhecido',
-            supervisorNome: r.usuario ? r.usuario.nome_completo : 'Desconhecido',
-            qtdEquips: r.coletas ? r.coletas.length : 0
-        }));
+        todosAjustes = (data || []).map(r => {
+            const destinosUnicos = [
+                ...new Set(
+                    (r.coletas || [])
+                        .map(c => c.almoxarifado_destino ? `${c.almoxarifado_destino.codigo} - ${c.almoxarifado_destino.descricao}` : null)
+                        .filter(Boolean)
+                )
+            ];
+
+            return {
+                ...r,
+                almoxarifadoDesc: r.almoxarifado ? `${r.almoxarifado.codigo} - ${r.almoxarifado.descricao}` : 'Desconhecido',
+                almoxarifadoDestinoDesc: destinosUnicos.length > 0 ? destinosUnicos.join(', ') : '-',
+                supervisorNome: r.usuario ? r.usuario.nome_completo : 'Desconhecido',
+                qtdEquips: r.coletas ? r.coletas.length : 0
+            };
+        });
 
         if (lblTotalGeral) lblTotalGeral.innerText = todosAjustes.length;
         aplicarFiltrosEOrdenar();
@@ -264,7 +297,10 @@
     }
 
     function renderizarGrid(lista) {
-        if (lista.length === 0) { tbodyAjustes.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem; color:#64748b;">Nenhum ajuste encontrado.</td></tr>`; return; }
+        if (lista.length === 0) {
+            tbodyAjustes.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 2rem; color:#64748b;">Nenhum ajuste encontrado.</td></tr>`;
+            return;
+        }
 
         tbodyAjustes.innerHTML = lista.map(r => {
             const dataFmt = r.data_ajuste ? new Date(r.data_ajuste + 'T12:00:00').toLocaleDateString('pt-BR') : '-';
@@ -272,7 +308,7 @@
             let btnHtml = `<button class="btn-acao btn-ver" data-id="${r.id}" title="Visualizar" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="eye" style="width:16px;"></i></button>`;
             btnHtml += `<button class="btn-acao btn-historico" data-id="${r.id}" title="Auditoria/Histórico" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="rotate-ccw" style="width:16px;"></i></button>`;
 
-            if (isGestor || r.usuario_supervisor_id === usuarioLogadoId) {
+            if (acessoTodos || r.usuario_supervisor_id === usuarioLogadoId) {
                 if (permissoesAcesso.edit) {
                     btnHtml += `<button class="btn-acao btn-editar" data-id="${r.id}" title="Editar Ajuste" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="edit-3" style="width:16px;"></i></button>`;
                 }
@@ -283,13 +319,14 @@
 
             return `
                 <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#fff7ed'" onmouseout="this.style.background='transparent'">
-                    <td style="padding: 0.6rem 1.25rem; font-size: 0.8rem;">${dataFmt}</td>
-                    <td style="padding: 0.6rem 1.25rem; font-weight: 800; color: var(--cnx-orange);">${r.id_entrada_erp}</td>
-                    <td style="padding: 0.6rem 1.25rem; font-weight: 800; color: #ef4444;">${r.id_inventario_erp}</td>
-                    <td style="padding: 0.6rem 1.25rem;">${r.almoxarifadoDesc}</td>
-                    <td style="padding: 0.6rem 1.25rem; font-weight: 700; text-align: center;">${r.qtdEquips}</td>
-                    <td style="padding: 0.6rem 1.25rem; font-size: 0.8rem;">${r.supervisorNome}</td>
-                    <td style="padding: 0.6rem 1.25rem; text-align: center; display: flex; justify-content: center; gap: 8px;">${btnHtml}</td>
+                    <td style="padding: 0.6rem 1rem; font-size: 0.8rem;">${dataFmt}</td>
+                    <td style="padding: 0.6rem 1rem; font-weight: 800; color: var(--cnx-orange);">${r.id_entrada_erp}</td>
+                    <td style="padding: 0.6rem 1rem; font-weight: 800; color: #ef4444;">${r.id_inventario_erp}</td>
+                    <td style="padding: 0.6rem 1rem;" title="${r.almoxarifadoDesc}">${r.almoxarifadoDesc}</td>
+                    <td style="padding: 0.6rem 1rem;" title="${r.almoxarifadoDestinoDesc}">${r.almoxarifadoDestinoDesc}</td>
+                    <td style="padding: 0.6rem 1rem; font-weight: 700; text-align: center;">${r.qtdEquips}</td>
+                    <td style="padding: 0.6rem 1rem; font-size: 0.8rem;">${r.supervisorNome}</td>
+                    <td style="padding: 0.6rem 1rem; text-align: center; display: flex; justify-content: center; gap: 8px;">${btnHtml}</td>
                 </tr>
             `;
         }).join('');
@@ -432,7 +469,7 @@
             inDataAjuste.readOnly = false; inObs.readOnly = false;
             btnBuscaAlmox.style.display = 'block';
             montarFooterFormulario(true);
-            tbodyMacs.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #94a3b8;">Selecione um Almoxarifado na Aba 1 para listar os MACs pendentes.</td></tr>`;
+            tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #94a3b8;">Selecione um Almoxarifado de Origem na Aba 1 para listar os MACs pendentes.</td></tr>`;
         } else {
             const r = todosAjustes.find(x => x.id === id);
             if (!r) return;
@@ -465,14 +502,31 @@
     }
 
     async function carregarMacsPendentes(idAlmox) {
-        tbodyMacs.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i> Buscando pendências...</td></tr>`;
+        tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i> Buscando pendências...</td></tr>`;
         lucide.createIcons();
         
-        const { data } = await window.db.from('coletas_mac').select('*, produto:produtos(codigo, descricao)').eq('almoxarifado_id', idAlmox).eq('status', 'PENDENTE').order('data_coleta', { ascending: true });
+        const { data, error } = await window.db
+            .from('coletas_mac')
+            .select(`
+                *,
+                produto:produtos(codigo, descricao),
+                almoxarifado_origem:almoxarifados!almoxarifado_id(codigo, descricao),
+                almoxarifado_destino:almoxarifados!almoxarifado_destino_id(codigo, descricao)
+            `)
+            .eq('almoxarifado_id', idAlmox)
+            .eq('status', 'PENDENTE')
+            .order('data_coleta', { ascending: true });
+
+        if (error) {
+            console.error('Erro ao buscar MACs pendentes:', error);
+            tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem; color: #ef4444;">Erro ao buscar pendências.</td></tr>`;
+            return;
+        }
+
         macsDisponiveis = data || [];
         
         if (macsDisponiveis.length === 0) {
-            tbodyMacs.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 2rem; color: #10b981; font-weight:700;"><i data-lucide="check-circle" style="width:24px; height:24px; margin-bottom:8px;"></i><br>Nenhum equipamento pendente de ajuste neste Almoxarifado!</td></tr>`;
+            tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem; color: #10b981; font-weight:700;"><i data-lucide="check-circle" style="width:24px; height:24px; margin-bottom:8px;"></i><br>Nenhum equipamento pendente de ajuste neste Almoxarifado!</td></tr>`;
             lucide.createIcons();
             return;
         }
@@ -481,10 +535,25 @@
     }
 
     async function carregarMacsDoAjuste(idAjuste, modo) {
-        tbodyMacs.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i> Carregando equipamentos vinculados...</td></tr>`;
+        tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i> Carregando equipamentos vinculados...</td></tr>`;
         lucide.createIcons();
         
-        const { data } = await window.db.from('coletas_mac').select('*, produto:produtos(codigo, descricao)').eq('ajuste_estoque_id', idAjuste);
+        const { data, error } = await window.db
+            .from('coletas_mac')
+            .select(`
+                *,
+                produto:produtos(codigo, descricao),
+                almoxarifado_origem:almoxarifados!almoxarifado_id(codigo, descricao),
+                almoxarifado_destino:almoxarifados!almoxarifado_destino_id(codigo, descricao)
+            `)
+            .eq('ajuste_estoque_id', idAjuste);
+
+        if (error) {
+            console.error('Erro ao buscar MACs do ajuste:', error);
+            tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem; color: #ef4444;">Erro ao carregar equipamentos vinculados.</td></tr>`;
+            return;
+        }
+
         macsDisponiveis = data || [];
         lblTotalMacsSel.innerText = macsDisponiveis.length;
         
@@ -495,8 +564,14 @@
         tbodyMacs.innerHTML = macsDisponiveis.map(m => {
             const pDesc = m.produto ? `${m.produto.codigo} - ${m.produto.descricao}` : '-';
             const mDesc = `<div style="font-weight:800; color:var(--cnx-orange);">${m.mac}</div><div style="font-size:0.7rem; color:#64748b;">SN: ${m.numero_serie || '-'}</div>`;
-            const dFmt = new Date(m.data_coleta + 'T12:00:00').toLocaleDateString('pt-BR');
-            const oDesc = `<div style="font-weight:700; color:var(--cnx-blue);">${m.numero_os}</div><div style="font-size:0.7rem; color:#64748b;">${dFmt}</div>`;
+            const origDesc = m.almoxarifado_origem
+                ? `${m.almoxarifado_origem.codigo} - ${m.almoxarifado_origem.descricao}`
+                : '-';
+            const destDesc = m.almoxarifado_destino
+                ? `${m.almoxarifado_destino.codigo} - ${m.almoxarifado_destino.descricao}`
+                : '-';
+            const dFmt = m.data_coleta ? new Date(m.data_coleta + 'T12:00:00').toLocaleDateString('pt-BR') : '-';
+            const oDesc = `<div style="font-weight:700; color:var(--cnx-blue);">${m.numero_os || '-'}</div><div style="font-size:0.7rem; color:#64748b;">${dFmt}</div>`;
             
             if (editavel) {
                 const checkedStr = jaSalvos ? 'checked' : '';
@@ -507,8 +582,10 @@
                 return `
                 <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s; ${bgCor}">
                     <td style="padding: 0.6rem; text-align: center;"><input type="checkbox" class="chk-mac-item" data-id="${m.id}" ${checkedStr} style="cursor: pointer;"></td>
-                    <td style="padding: 0.6rem; font-size: 0.8rem;">${pDesc}</td>
+                    <td style="padding: 0.6rem; font-size: 0.76rem;">${pDesc}</td>
                     <td style="padding: 0.6rem;">${mDesc}</td>
+                    <td style="padding: 0.6rem; font-size: 0.75rem; color: #334155;">${origDesc}</td>
+                    <td style="padding: 0.6rem; font-size: 0.75rem; color: #334155;">${destDesc}</td>
                     <td style="padding: 0.6rem;">${oDesc}</td>
                     <td style="padding: 0.4rem; background: #f0f9ff; border-left: 1px solid #bae6fd;">
                         <input type="text" class="in-erp-id input-standard input-upper" placeholder="ID IXC..." value="${valErp}" ${disabledStr} style="width: 100%; border: 1px solid #7dd3fc; border-radius: 4px; padding: 4px 8px; font-weight: 800; color: var(--cnx-blue);">
@@ -518,8 +595,10 @@
                 return `
                 <tr style="border-bottom: 1px solid #f1f5f9; background: #f8fafc;">
                     <td style="padding: 0.6rem; text-align: center;"><i data-lucide="check" style="color:#10b981; width:16px;"></i></td>
-                    <td style="padding: 0.6rem; font-size: 0.8rem;">${pDesc}</td>
+                    <td style="padding: 0.6rem; font-size: 0.76rem;">${pDesc}</td>
                     <td style="padding: 0.6rem;">${mDesc}</td>
+                    <td style="padding: 0.6rem; font-size: 0.75rem; color: #334155;">${origDesc}</td>
+                    <td style="padding: 0.6rem; font-size: 0.75rem; color: #334155;">${destDesc}</td>
                     <td style="padding: 0.6rem;">${oDesc}</td>
                     <td style="padding: 0.6rem; background: #f0f9ff; border-left: 1px solid #bae6fd; font-weight: 800; color: var(--cnx-blue); text-align: center;">
                         ${m.produto_patrimonio_erp || '-'}
@@ -645,7 +724,16 @@
     function renderizarListaConsulta() {
         const termo = inputBuscaConsulta.value.trim().toUpperCase();
         let lista = almoxarifados.filter(a => meusAlmoxarifadosIds.includes(a.id));
-        if (termo) lista = lista.filter(a => a.codigo.includes(termo) || a.descricao.includes(termo));
+        if (termo) {
+            lista = lista.filter(a =>
+                String(a.codigo || '').toUpperCase().includes(termo) ||
+                String(a.descricao || '').toUpperCase().includes(termo)
+            );
+        }
+
+        lista.sort((a, b) =>
+            String(a.descricao || '').localeCompare(String(b.descricao || ''), 'pt-BR', { sensitivity: 'base' })
+        );
         
         if (lista.length === 0) {
             tbodyConsulta.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:2rem; color:#64748b;">Nenhum almoxarifado disponível.</td></tr>`;

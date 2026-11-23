@@ -36,6 +36,8 @@
     const inData = moduloContent.querySelector('#coleta-data');
     const inAlmoxId = moduloContent.querySelector('#coleta-almox-id');
     const inAlmoxDesc = moduloContent.querySelector('#coleta-almox-desc');
+    const inAlmoxDestinoId = moduloContent.querySelector('#coleta-almox-destino-id');
+    const inAlmoxDestinoDesc = moduloContent.querySelector('#coleta-almox-destino-desc');
     const inOs = moduloContent.querySelector('#coleta-os');
     const inTipoOs = moduloContent.querySelector('#coleta-tipo-os');
     
@@ -53,11 +55,11 @@
     const theadConsulta = moduloContent.querySelector('#thead-consulta-coleta');
     const tbodyConsulta = moduloContent.querySelector('#tbody-consulta-coleta');
 
-
     let permissoesAcesso = { view: false, create: false, edit: false, delete: false };
     let usuarioLogadoId = null;
     let isAdmin = false;
     let isGestor = false;
+    let acessoTodos = false;
     let meusAlmoxarifadosIds = [];
     
     let almoxarifados = [];
@@ -99,43 +101,72 @@
             if (!session) return;
             usuarioLogadoId = session.user.id;
 
-            const { data: user } = await window.db.from('usuarios').select('acesso_todos_almoxarifados, cargos(nome)').eq('id', usuarioLogadoId).single();
+            const { data: user } = await window.db
+                .from('usuarios')
+                .select('acesso_todos_almoxarifados, cargos(nome)')
+                .eq('id', usuarioLogadoId)
+                .single();
+
             const upperCargo = user?.cargos?.nome?.toUpperCase() || '';
             isAdmin = upperCargo === 'ADMINISTRADOR';
             isGestor = isAdmin || upperCargo.includes('SUPERVISOR');
+            acessoTodos = isAdmin || isGestor || !!user?.acesso_todos_almoxarifados;
 
-            const { data: vincs } = await window.db.from('usuario_almoxarifados').select('almoxarifado_id').eq('usuario_id', usuarioLogadoId);
+            const { data: vincs } = await window.db
+                .from('usuario_almoxarifados')
+                .select('almoxarifado_id')
+                .eq('usuario_id', usuarioLogadoId);
             const acessosDiretos = vincs ? vincs.map(v => v.almoxarifado_id) : [];
             
-            const { data: resAlmox } = await window.db.from('almoxarifados').select('*').eq('status', 'ATIVO').order('codigo');
+            const { data: resAlmox } = await window.db
+                .from('almoxarifados')
+                .select('*')
+                .eq('status', 'ATIVO')
+                .order('codigo');
             almoxarifados = resAlmox || [];
             
-            meusAlmoxarifadosIds = (isAdmin || isGestor) ? almoxarifados.map(a => a.id) : acessosDiretos;
+            meusAlmoxarifadosIds = acessoTodos ? almoxarifados.map(a => a.id) : acessosDiretos;
 
             await buscarColetas();
         } catch (e) { console.error(e); }
     }
 
     async function buscarColetas() {
-        tbodyColetas.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>`;
+        tbodyColetas.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>`;
         lucide.createIcons();
 
         let query = window.db.from('coletas_mac')
-            .select(`*, almoxarifado:almoxarifados(codigo, descricao), produto:produtos(codigo, descricao), usuario:usuarios!usuario_estoquista_id(nome_completo)`)
+            .select(`
+                *,
+                almoxarifado:almoxarifados!almoxarifado_id(codigo, descricao),
+                almoxarifado_destino:almoxarifados!almoxarifado_destino_id(codigo, descricao),
+                produto:produtos(codigo, descricao),
+                usuario:usuarios!usuario_estoquista_id(nome_completo)
+            `)
             .order('created_at', { ascending: false });
 
-        if (!isGestor) {
-            const idsFmt = meusAlmoxarifadosIds.map(i => `"${i}"`).join(',');
-            if (idsFmt) query = query.in('almoxarifado_id', meusAlmoxarifadosIds);
-            else { todasColetas = []; aplicarFiltrosEOrdenar(); return; }
+        if (!acessoTodos) {
+            if (meusAlmoxarifadosIds.length > 0) {
+                const idsFmt = meusAlmoxarifadosIds.map(i => `"${i}"`).join(',');
+                query = query.or(`almoxarifado_id.in.(${idsFmt}),almoxarifado_destino_id.in.(${idsFmt})`);
+            } else {
+                todasColetas = [];
+                aplicarFiltrosEOrdenar();
+                return;
+            }
         }
 
         const { data, error } = await query;
-        if (error) { tbodyColetas.innerHTML = `<tr><td colspan="8" style="text-align:center; color:red;">Erro ao buscar coletas.</td></tr>`; return; }
+        if (error) {
+            console.error('Erro ao buscar coletas:', error);
+            tbodyColetas.innerHTML = `<tr><td colspan="9" style="text-align:center; color:red;">Erro ao buscar coletas.</td></tr>`;
+            return;
+        }
 
         todasColetas = (data || []).map(r => ({
             ...r,
             almoxarifadoDesc: r.almoxarifado ? `${r.almoxarifado.codigo} - ${r.almoxarifado.descricao}` : 'Desconhecido',
+            almoxarifadoDestinoDesc: r.almoxarifado_destino ? `${r.almoxarifado_destino.codigo} - ${r.almoxarifado_destino.descricao}` : '-',
             produtoDesc: r.produto ? `${r.produto.codigo} - ${r.produto.descricao}` : 'Desconhecido',
             estoquistaNome: r.usuario ? r.usuario.nome_completo : 'Desconhecido'
         }));
@@ -262,7 +293,7 @@
 
     function renderizarGrid(lista) {
         if (lista.length === 0) { 
-            tbodyColetas.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 2rem; color:#64748b;">Nenhuma coleta encontrada.</td></tr>`; 
+            tbodyColetas.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 2rem; color:#64748b;">Nenhuma coleta encontrada.</td></tr>`; 
             return; 
         }
 
@@ -276,21 +307,22 @@
                 if (permissoesAcesso.edit) {
                     btnHtml += `<button class="btn-acao btn-editar" data-id="${r.id}" title="Editar Coleta" style="background:none; border:none; color:var(--cnx-blue); cursor:pointer;"><i data-lucide="edit-3" style="width:16px;"></i></button>`;
                 }
-                if ((r.usuario_estoquista_id === usuarioLogadoId || isGestor) && permissoesAcesso.delete) {
+                if ((r.usuario_estoquista_id === usuarioLogadoId || acessoTodos) && permissoesAcesso.delete) {
                     btnHtml += `<button class="btn-acao btn-excluir" data-id="${r.id}" title="Excluir Coleta" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="trash-2" style="width:16px;"></i></button>`;
                 }
             }
 
             return `
                 <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#fff7ed'" onmouseout="this.style.background='transparent'">
-                    <td style="padding: 0.6rem; font-size: 0.8rem; white-space: nowrap;">${dataFmt}</td>
-                    <td style="padding: 0.6rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.numero_os || '-'}">${r.numero_os || '-'}</td>
-                    <td style="padding: 0.6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.almoxarifadoDesc}">${r.almoxarifadoDesc}</td>
-                    <td style="padding: 0.6rem; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: help;" title="${r.produtoDesc}">${r.produtoDesc}</td>
-                    <td style="padding: 0.6rem; font-weight:800; color:var(--cnx-orange); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.mac || '-'}">${r.mac || '-'}</td>
-                    <td style="padding: 0.6rem; font-size: 0.8rem; color:#64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.numero_serie || '-'}">${r.numero_serie || '-'}</td>
-                    <td style="padding: 0.6rem; text-align: center;">${getStatusBadge(r.status)}</td>
-                    <td style="padding: 0.6rem; text-align: center; display: flex; justify-content: center; gap: 6px;">${btnHtml}</td>
+                    <td style="padding: 0.6rem 0.5rem; font-size: 0.78rem; white-space: nowrap;">${dataFmt}</td>
+                    <td style="padding: 0.6rem 0.5rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.numero_os || '-'}">${r.numero_os || '-'}</td>
+                    <td style="padding: 0.6rem 0.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.almoxarifadoDesc}">${r.almoxarifadoDesc}</td>
+                    <td style="padding: 0.6rem 0.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.almoxarifadoDestinoDesc}">${r.almoxarifadoDestinoDesc}</td>
+                    <td style="padding: 0.6rem 0.5rem; font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: help;" title="${r.produtoDesc}">${r.produtoDesc}</td>
+                    <td style="padding: 0.6rem 0.5rem; font-weight:800; color:var(--cnx-orange); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.mac || '-'}">${r.mac || '-'}</td>
+                    <td style="padding: 0.6rem 0.5rem; font-size: 0.78rem; color:#64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.numero_serie || '-'}">${r.numero_serie || '-'}</td>
+                    <td style="padding: 0.6rem 0.5rem; text-align: center;">${getStatusBadge(r.status)}</td>
+                    <td style="padding: 0.6rem 0.5rem; text-align: center; display: flex; justify-content: center; gap: 6px;">${btnHtml}</td>
                 </tr>
             `;
         }).join('');
@@ -329,14 +361,20 @@
             return;
         }
 
-        const btnAlmox = e.target.closest('#btn-busca-almox') || e.target.closest('#coleta-almox-desc');
-        if (btnAlmox && !inAlmoxDesc.readOnly) { 
-            abrirModalConsulta('almoxarifado'); 
+        const btnAlmoxOrigem = e.target.closest('#btn-busca-almox') || e.target.closest('#coleta-almox-desc');
+        if (btnAlmoxOrigem && modoForm !== 'visualizar') { 
+            abrirModalConsulta('almoxarifado_origem'); 
+            return; 
+        }
+
+        const btnAlmoxDestino = e.target.closest('#btn-busca-almox-destino') || e.target.closest('#coleta-almox-destino-desc');
+        if (btnAlmoxDestino && modoForm !== 'visualizar') { 
+            abrirModalConsulta('almoxarifado_destino'); 
             return; 
         }
 
         const btnProd = e.target.closest('#btn-busca-produto') || e.target.closest('#coleta-produto-desc');
-        if (btnProd && !inProdutoDesc.readOnly) { 
+        if (btnProd && modoForm !== 'visualizar') { 
             abrirModalConsulta('produto'); 
             return; 
         }
@@ -412,14 +450,23 @@
         formFoiAlterado = false;
         
         inData.value = new Date().toISOString().split('T')[0];
-        inAlmoxId.value = ''; inAlmoxDesc.value = ''; inOs.value = ''; inTipoOs.value = 'RETIRADA';
+        inAlmoxId.value = ''; inAlmoxDesc.value = '';
+        inAlmoxDestinoId.value = ''; inAlmoxDestinoDesc.value = '';
+        inOs.value = ''; inTipoOs.value = 'RETIRADA';
         inProdutoId.value = ''; inProdutoCod.value = ''; inProdutoDesc.value = ''; 
         inMac.value = ''; inSerie.value = ''; inObs.value = '';
         badgeStatusModal.innerHTML = '';
         tabBtns[0].click();
         
-        inData.readOnly = false; inAlmoxDesc.readOnly = false; inOs.readOnly = false; inTipoOs.disabled = false;
-        inProdutoCod.readOnly = false; inMac.readOnly = false; inSerie.readOnly = false; inObs.readOnly = false;
+        inData.readOnly = false;
+        inOs.readOnly = false;
+        inTipoOs.disabled = false;
+        inProdutoCod.readOnly = false;
+        inMac.readOnly = false;
+        inSerie.readOnly = false;
+        inObs.readOnly = false;
+        moduloContent.querySelector('#btn-busca-almox').style.display = 'block';
+        moduloContent.querySelector('#btn-busca-almox-destino').style.display = 'block';
         moduloContent.querySelector('#btn-busca-produto').style.display = 'block';
         
         if (modo === 'novo') {
@@ -429,7 +476,7 @@
             
             if (meusAlmoxarifadosIds.length === 1) {
                 const a = almoxarifados.find(x => x.id === meusAlmoxarifadosIds[0]);
-                if(a) { inAlmoxId.value = a.id; inAlmoxDesc.value = `${a.codigo} - ${a.descricao}`; }
+                if (a) { inAlmoxId.value = a.id; inAlmoxDesc.value = `${a.codigo} - ${a.descricao}`; }
             }
         } else {
             const r = todasColetas.find(x => x.id === id);
@@ -439,17 +486,30 @@
             badgeStatusModal.innerHTML = getStatusBadge(r.status);
             
             inData.value = r.data_coleta ? r.data_coleta.split('T')[0] : '';
-            inAlmoxId.value = r.almoxarifado_id; inAlmoxDesc.value = r.almoxarifadoDesc;
+            inAlmoxId.value = r.almoxarifado_id || '';
+            inAlmoxDesc.value = r.almoxarifadoDesc !== 'Desconhecido' ? r.almoxarifadoDesc : '';
+            inAlmoxDestinoId.value = r.almoxarifado_destino_id || '';
+            inAlmoxDestinoDesc.value = r.almoxarifadoDestinoDesc !== '-' ? r.almoxarifadoDestinoDesc : '';
             inTipoOs.value = r.tipo_os || 'RETIRADA';
             atualizarEstadoCampoOs();
             inOs.value = r.numero_os || '';
             inObs.value = r.observacoes || '';
-            inProdutoId.value = r.produto_consumo_id; inProdutoCod.value = r.produto ? r.produto.codigo : ''; inProdutoDesc.value = r.produtoDesc;
-            inMac.value = r.mac || ''; inSerie.value = r.numero_serie || '';
+            inProdutoId.value = r.produto_consumo_id || '';
+            inProdutoCod.value = r.produto ? r.produto.codigo : '';
+            inProdutoDesc.value = r.produtoDesc || '';
+            inMac.value = r.mac || '';
+            inSerie.value = r.numero_serie || '';
             
             if (modo === 'visualizar') {
-                inData.readOnly = true; inAlmoxDesc.readOnly = true; inOs.readOnly = true; inTipoOs.disabled = true;
-                inProdutoCod.readOnly = true; inMac.readOnly = true; inSerie.readOnly = true; inObs.readOnly = true;
+                inData.readOnly = true;
+                inOs.readOnly = true;
+                inTipoOs.disabled = true;
+                inProdutoCod.readOnly = true;
+                inMac.readOnly = true;
+                inSerie.readOnly = true;
+                inObs.readOnly = true;
+                moduloContent.querySelector('#btn-busca-almox').style.display = 'none';
+                moduloContent.querySelector('#btn-busca-almox-destino').style.display = 'none';
                 moduloContent.querySelector('#btn-busca-produto').style.display = 'none';
                 montarFooterFormulario(false);
             } else if (modo === 'editar') {
@@ -480,14 +540,21 @@
 
     async function salvarRegistroUnico() {
         const d = inData.value;
-        const idAlmox = inAlmoxId.value;
+        const idAlmoxOrigem = inAlmoxId.value;
+        const idAlmoxDestino = inAlmoxDestinoId.value;
         const isEstoque = inTipoOs.value === 'ESTOQUE';
         const os = isEstoque ? '' : inOs.value.trim().toUpperCase();
         const prod = inProdutoId.value;
         const mac = inMac.value.trim().toUpperCase();
         
-        if (!d || !idAlmox || (!isEstoque && !os)) {
-            window.appAlert("Atenção", isEstoque ? "Preencha a Data e o Almoxarifado na Aba 1." : "Preencha a Data, O.S. e o Almoxarifado na Aba 1.", "warning");
+        if (!d || !idAlmoxOrigem || !idAlmoxDestino || (!isEstoque && !os)) {
+            window.appAlert(
+                "Atenção",
+                isEstoque
+                    ? "Preencha a Data, Almoxarifado de Origem e Almoxarifado de Destino na Aba 1."
+                    : "Preencha a Data, O.S., Almoxarifado de Origem e Almoxarifado de Destino na Aba 1.",
+                "warning"
+            );
             return;
         }
         if (!prod || !mac) {
@@ -503,14 +570,15 @@
 
         try {
             const payload = {
-                almoxarifado_id: idAlmox,
+                almoxarifado_id: idAlmoxOrigem,
+                almoxarifado_destino_id: idAlmoxDestino,
                 numero_os: os,
                 tipo_os: inTipoOs.value,
                 data_coleta: d,
                 produto_consumo_id: prod,
                 mac: mac,
                 numero_serie: inSerie.value.trim().toUpperCase(),
-                observacoes: inObs.value.trim().toUpperCase(),
+                observacoes: inObs.value.trim().toUpperCase()
             };
 
             if (modoForm === 'novo') {
@@ -539,8 +607,9 @@
         tbodyConsulta.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:2rem;"><i data-lucide="loader-2" class="lucide-spin"></i></td></tr>`;
         modalConsulta.style.display = 'flex';
         
-        if (tipo === 'almoxarifado') {
-            tituloConsulta.innerHTML = `<i data-lucide="warehouse" style="color: var(--cnx-orange); width: 18px;"></i> <span>Selecionar Almoxarifado</span>`;
+        if (tipo === 'almoxarifado_origem' || tipo === 'almoxarifado_destino') {
+            const tituloTxt = tipo === 'almoxarifado_origem' ? 'Selecionar Almoxarifado de Origem' : 'Selecionar Almoxarifado de Destino';
+            tituloConsulta.innerHTML = `<i data-lucide="warehouse" style="color: var(--cnx-orange); width: 18px;"></i> <span>${tituloTxt}</span>`;
             theadConsulta.innerHTML = `<tr><th style="padding: 0.6rem; width: 80px; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Código</th><th style="padding: 0.6rem; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Descrição</th><th style="padding: 0.6rem; width: 60px; text-align:center; position:sticky; top:0; background:#f8fafc; box-shadow:0 1px 0 #cbd5e1;">Ação</th></tr>`;
         } else {
             tituloConsulta.innerHTML = `<i data-lucide="package" style="color: var(--cnx-orange); width: 18px;"></i> <span>Selecionar Produto Base</span>`;
@@ -561,23 +630,45 @@
         const termo = inputBuscaConsulta.value.trim().toUpperCase();
         let html = '';
 
-        if (tipoConsultaAtual === 'almoxarifado') {
-            let lista = almoxarifados.filter(a => meusAlmoxarifadosIds.includes(a.id));
-            if (termo) lista = lista.filter(a => a.codigo.includes(termo) || a.descricao.includes(termo));
+        if (tipoConsultaAtual === 'almoxarifado_origem' || tipoConsultaAtual === 'almoxarifado_destino') {
+            let lista = tipoConsultaAtual === 'almoxarifado_origem'
+                ? almoxarifados.filter(a => meusAlmoxarifadosIds.includes(a.id))
+                : [...almoxarifados];
+
+            if (termo) {
+                lista = lista.filter(a =>
+                    String(a.codigo || '').toUpperCase().includes(termo) ||
+                    String(a.descricao || '').toUpperCase().includes(termo)
+                );
+            }
+
+            lista.sort((a, b) =>
+                String(a.descricao || '').localeCompare(String(b.descricao || ''), 'pt-BR', { sensitivity: 'base' })
+            );
             
             if (lista.length === 0) html = `<tr><td colspan="3" style="text-align:center; padding:2rem; color:#64748b;">Nenhum almoxarifado disponível.</td></tr>`;
             else {
+                const fnSelec = tipoConsultaAtual === 'almoxarifado_origem' ? 'selecAlmoxOrigemColeta' : 'selecAlmoxDestinoColeta';
                 html = lista.map(a => `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 0.6rem; font-weight:700;">${a.codigo}</td>
                         <td style="padding: 0.6rem;">${a.descricao}</td>
-                        <td style="padding: 0.6rem; text-align: center;"><button type="button" onclick="window.selecAlmoxColeta('${a.id}')" style="background:none; border:none; cursor:pointer;"><i data-lucide="check-circle" style="color:var(--cnx-blue); width:20px;"></i></button></td>
+                        <td style="padding: 0.6rem; text-align: center;"><button type="button" onclick="window.${fnSelec}('${a.id}')" style="background:none; border:none; cursor:pointer;"><i data-lucide="check-circle" style="color:var(--cnx-blue); width:20px;"></i></button></td>
                     </tr>
                 `).join('');
             }
         } else {
-            let lista = produtos;
-            if (termo) lista = lista.filter(p => p.codigo.includes(termo) || p.descricao.includes(termo));
+            let lista = [...produtos];
+            if (termo) {
+                lista = lista.filter(p =>
+                    String(p.codigo || '').toUpperCase().includes(termo) ||
+                    String(p.descricao || '').toUpperCase().includes(termo)
+                );
+            }
+
+            lista.sort((a, b) =>
+                String(a.descricao || '').localeCompare(String(b.descricao || ''), 'pt-BR', { sensitivity: 'base' })
+            );
             
             if (lista.length === 0) html = `<tr><td colspan="3" style="text-align:center; padding:2rem; color:#64748b;">Nenhum equipamento encontrado.</td></tr>`;
             else {
@@ -594,9 +685,15 @@
         lucide.createIcons();
     }
 
-    window.selecAlmoxColeta = function(id) {
+    window.selecAlmoxOrigemColeta = function(id) {
         const a = almoxarifados.find(x => x.id === id);
         if (a) { inAlmoxId.value = a.id; inAlmoxDesc.value = `${a.codigo} - ${a.descricao}`; formFoiAlterado = true; }
+        modalConsulta.style.display = 'none'; 
+    };
+
+    window.selecAlmoxDestinoColeta = function(id) {
+        const a = almoxarifados.find(x => x.id === id);
+        if (a) { inAlmoxDestinoId.value = a.id; inAlmoxDestinoDesc.value = `${a.codigo} - ${a.descricao}`; formFoiAlterado = true; }
         modalConsulta.style.display = 'none'; 
     };
 
@@ -621,61 +718,59 @@
     }, true);
 
     // ================= LÓGICA DO PRODUTO (AUTO-BUSCA PELO CÓDIGO) =================
-    
     async function processarBuscaProdutoCod() {
-        let valRaw = inProdutoCod.value.trim();
+        const valRaw = inProdutoCod.value.trim().toUpperCase();
         if (!valRaw) { 
             inProdutoId.value = ''; 
             inProdutoDesc.value = ''; 
             return; 
         }
-        
-        // Preenche automaticamente com zeros à esquerda para ficar com 6 dígitos
-        const cod = valRaw.padStart(6, '0');
-        inProdutoCod.value = cod; 
-        
-        const pCache = produtos.find(x => x.codigo === cod);
+
+        const semZeros = valRaw.replace(/^0+/, '') || valRaw;
+        const comZeros = valRaw.padStart(6, '0');
+        const candidatos = [...new Set([valRaw, semZeros, comZeros])];
+
+        const pCache = produtos.find(x => candidatos.includes(String(x.codigo || '').trim().toUpperCase()));
         if (pCache) {
-            inProdutoId.value = pCache.id; 
+            inProdutoId.value = pCache.id;
+            inProdutoCod.value = pCache.codigo;
             inProdutoDesc.value = pCache.descricao;
             formFoiAlterado = true;
-            inMac.focus(); // Pula direto para o MAC
+            inMac.focus();
+            return;
+        }
+
+        const { data } = await window.db.from('produtos')
+            .select('id, codigo, descricao')
+            .in('codigo', candidatos)
+            .eq('status', 'ATIVO')
+            .limit(1)
+            .maybeSingle();
+            
+        if (data) {
+            inProdutoId.value = data.id;
+            inProdutoCod.value = data.codigo;
+            inProdutoDesc.value = data.descricao;
+            produtos.push(data);
+            formFoiAlterado = true;
+            inMac.focus();
         } else {
-            // Usa maybeSingle() para não estourar erro 406 no console se não encontrar
-            const { data } = await window.db.from('produtos')
-                .select('id, codigo, descricao')
-                .eq('codigo', cod)
-                .eq('status', 'ATIVO')
-                .maybeSingle();
-                
-            if (data) {
-                inProdutoId.value = data.id; 
-                inProdutoDesc.value = data.descricao;
-                produtos.push(data); // Salva no cache local para a próxima
-                formFoiAlterado = true;
-                inMac.focus(); // Pula direto para o MAC
-            } else {
-                window.appAlert('Erro', 'Produto não encontrado na base de dados.', 'warning');
-                inProdutoCod.value = ''; 
-                inProdutoId.value = ''; 
-                inProdutoDesc.value = '';
-                inProdutoCod.focus(); // Devolve o cursor para tentar novamente
-            }
+            window.appAlert('Erro', 'Produto não encontrado na base de dados.', 'warning');
+            inProdutoCod.value = ''; 
+            inProdutoId.value = ''; 
+            inProdutoDesc.value = '';
+            inProdutoCod.focus();
         }
     }
 
-    // Dispara quando sai do campo (Tab ou clique fora)
     inProdutoCod.addEventListener('focusout', processarBuscaProdutoCod);
 
-    // Dispara ao teclar Enter dentro do campo
     inProdutoCod.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
-            e.preventDefault(); // Evita recarregar a tela sem querer
+            e.preventDefault();
             processarBuscaProdutoCod();
         }
     });
-
-    // ================= MODAL DE COLETA (UNITÁRIO) =================
 
     carregarDadosIniciais();
 })();

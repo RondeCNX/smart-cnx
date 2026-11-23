@@ -76,6 +76,8 @@
     let scannerAtivo = false;
     let confAlmoxId = null;
     let confAlmoxNome = '';
+    let confAlmoxDestinoId = null;
+    let confAlmoxDestinoNome = '';
     let confTipo = 'Estoque';
     let modeloSelecionado = null;
     let etapaScan = 'MAC';
@@ -266,9 +268,10 @@
 
     function coletaTemDadosPreenchidos() {
         const almox = document.getElementById('col-almoxarifado')?.value;
+        const almoxDest = document.getElementById('col-almoxarifado-destino')?.value;
         const prod = document.getElementById('col-produto')?.value;
         const manual = document.getElementById('col-input-manual')?.value.trim();
-        return Boolean(almox || prod || confAlmoxId || loteMac.length > 0 || macTemp || manual);
+        return Boolean(almox || almoxDest || prod || confAlmoxId || confAlmoxDestinoId || loteMac.length > 0 || macTemp || manual);
     }
 
     async function limparEstadoColeta() {
@@ -277,9 +280,12 @@
         renderizarLote();
         confAlmoxId = null;
         confAlmoxNome = '';
+        confAlmoxDestinoId = null;
+        confAlmoxDestinoNome = '';
         modeloSelecionado = null;
         macTemp = '';
-        setPickerValue('col-almoxarifado', 'lbl-pick-col-almox', '', '', 'Toque para buscar almoxarifado...');
+        setPickerValue('col-almoxarifado', 'lbl-pick-col-almox', '', '', 'Toque para buscar origem...');
+        setPickerValue('col-almoxarifado-destino', 'lbl-pick-col-almox-destino', '', '', 'Toque para buscar destino...');
         setPickerValue('col-produto', 'lbl-pick-col-prod', '', '', 'Toque para buscar produto...');
         const inpManual = document.getElementById('col-input-manual');
         if (inpManual) inpManual.value = '';
@@ -594,8 +600,14 @@
 
     // Pickers de Coleta de MAC
     document.getElementById('btn-pick-col-almox')?.addEventListener('click', () => {
-        abrirSeletor('Selecionar Almoxarifado', almoxarifadosPermitidos, (item) => {
-            setPickerValue('col-almoxarifado', 'lbl-pick-col-almox', item.id, `${item.codigo} - ${item.descricao}`, 'Toque para buscar almoxarifado...');
+        abrirSeletor('Almoxarifado de Origem', almoxarifadosPermitidos, (item) => {
+            setPickerValue('col-almoxarifado', 'lbl-pick-col-almox', item.id, `${item.codigo} - ${item.descricao}`, 'Toque para buscar origem...');
+        });
+    });
+
+    document.getElementById('btn-pick-col-almox-destino')?.addEventListener('click', () => {
+        abrirSeletor('Almoxarifado de Destino', todosAlmoxarifados, (item) => {
+            setPickerValue('col-almoxarifado-destino', 'lbl-pick-col-almox-destino', item.id, `${item.codigo} - ${item.descricao}`, 'Toque para buscar destino...');
         });
     });
 
@@ -752,15 +764,20 @@
     // ================= COLETA DE MAC EM LOTE =================
     document.getElementById('btn-iniciar-conferencia')?.addEventListener('click', () => {
         const almoxId = document.getElementById('col-almoxarifado').value;
-        if (!almoxId) {
-            mAlert('Atenção', 'Selecione o almoxarifado antes de iniciar.');
+        const almoxDestId = document.getElementById('col-almoxarifado-destino').value;
+        if (!almoxId || !almoxDestId) {
+            mAlert('Atenção', 'Selecione o almoxarifado de origem e o de destino antes de iniciar.');
             return;
         }
         confAlmoxId = almoxId;
         confAlmoxNome = almoxMap[almoxId] || document.getElementById('lbl-pick-col-almox').innerText;
+        confAlmoxDestinoId = almoxDestId;
+        confAlmoxDestinoNome = almoxMap[almoxDestId] || document.getElementById('lbl-pick-col-almox-destino').innerText;
         confTipo = document.getElementById('col-tipo').value || 'Estoque';
 
-        document.getElementById('lbl-conf-almox').innerText = confAlmoxNome;
+        document.getElementById('lbl-conf-almox').innerText = `Origem: ${confAlmoxNome}`;
+        const lblDest = document.getElementById('lbl-conf-almox-destino');
+        if (lblDest) lblDest.innerText = `Destino: ${confAlmoxDestinoNome}`;
         document.getElementById('lbl-conf-tipo').innerText = confTipo.toUpperCase();
 
         document.getElementById('coleta-step-setup').style.display = 'none';
@@ -943,7 +960,7 @@
         if (loteMac.length === 0) return;
         const conf = await mConfirm(
             'Enviar Conferência',
-            `Deseja enviar <strong>${loteMac.length} equipamento(s)</strong> para <strong>${confAlmoxNome}</strong> (Tipo: ${confTipo})?`,
+            `Deseja enviar <strong>${loteMac.length} equipamento(s)</strong>?<br><br><strong>Origem:</strong> ${confAlmoxNome}<br><strong>Destino:</strong> ${confAlmoxDestinoNome}<br><strong>Tipo:</strong> ${confTipo}`,
             'Enviar Agora'
         );
         if (!conf) return;
@@ -956,6 +973,7 @@
             const dataHoje = new Date().toISOString().split('T')[0];
             const payload = loteMac.map(item => ({
                 almoxarifado_id: confAlmoxId,
+                almoxarifado_destino_id: confAlmoxDestinoId,
                 numero_os: '',
                 tipo_os: confTipo.toUpperCase(),
                 data_coleta: dataHoje,
@@ -974,12 +992,15 @@
             loteMac = [];
             renderizarLote();
 
-            // Limpa almoxarifado, produto e variáveis da coleta anterior
+            // Limpa almoxarifados, produto e variáveis da coleta anterior
             confAlmoxId = null;
             confAlmoxNome = '';
+            confAlmoxDestinoId = null;
+            confAlmoxDestinoNome = '';
             modeloSelecionado = null;
             macTemp = '';
-            setPickerValue('col-almoxarifado', 'lbl-pick-col-almox', '', '', 'Toque para buscar almoxarifado...');
+            setPickerValue('col-almoxarifado', 'lbl-pick-col-almox', '', '', 'Toque para buscar origem...');
+            setPickerValue('col-almoxarifado-destino', 'lbl-pick-col-almox-destino', '', '', 'Toque para buscar destino...');
             setPickerValue('col-produto', 'lbl-pick-col-prod', '', '', 'Toque para buscar produto...');
             const inpManual = document.getElementById('col-input-manual');
             if (inpManual) inpManual.value = '';
@@ -1291,63 +1312,7 @@
         renderizarItensFormReq();
     };
 
-    document.getElementById('btn-req-salvar')?.addEventListener('click', async () => {
-        const editId = document.getElementById('req-edit-id').value;
-        const solId = document.getElementById('req-almox-sol').value;
-        const abastId = document.getElementById('req-almox-abast').value;
-        const obs = document.getElementById('req-obs').value.trim();
-
-        if (!solId || !abastId) {
-            mudarAbaReqForm('geral');
-            mAlert('Atenção', 'Selecione o almoxarifado solicitante e o abastecedor.');
-            return;
-        }
-        if (reqFormItens.length === 0) {
-            mudarAbaReqForm('produtos');
-            mAlert('Atenção', 'Adicione pelo menos um produto à requisição.');
-            return;
-        }
-
-        try {
-            let reqId = editId;
-            if (editId) {
-                const { error } = await window.db.from('requisicoes').update({
-                    almoxarifado_requisitante_id: solId,
-                    almoxarifado_abastecedor_id: abastId,
-                    observacoes_solicitacao: obs
-                }).eq('id', editId);
-                if (error) throw error;
-                await window.db.from('requisicao_itens').delete().eq('requisicao_id', editId);
-            } else {
-                const { data, error } = await window.db.from('requisicoes').insert([{
-                    almoxarifado_requisitante_id: solId,
-                    almoxarifado_abastecedor_id: abastId,
-                    usuario_solicitante_id: usuario.id,
-                    observacoes_solicitacao: obs,
-                    status: 'PENDENTE'
-                }]).select().single();
-                if (error) throw error;
-                reqId = data.id;
-            }
-
-            const itensPayload = reqFormItens.map(i => ({
-                requisicao_id: reqId,
-                produto_id: i.produto_id,
-                qtd_solicitada: i.qtd
-            }));
-            const { error: errItens } = await window.db.from('requisicao_itens').insert(itensPayload);
-            if (errItens) throw errItens;
-
-            reqFormSujo = false;
-            fecharModalSilencioso('modal-req-form');
-            await mAlert('Sucesso', editId ? 'Requisição atualizada!' : 'Requisição criada com sucesso!');
-            if (viewAtual === 'requisicoes') carregarRequisicoesMobile();
-        } catch (err) {
-            console.error(err);
-            mAlert('Erro', err.message || 'Falha ao salvar requisição.');
-        }
-    });
-
+    
     window.verRequisicaoMobile = async function(reqId, modoReceber) {
         const req = requisicoesCache.find(r => r.id === reqId);
         if (!req) return;
