@@ -78,6 +78,11 @@
     // Estado Coleta MAC
     let html5QrCode = null;
     let scannerAtivo = false;
+    let camerasDisponiveis = [];
+    let cameraSelecionadaId = localStorage.getItem('cnx_mobile_camera_id') || '';
+    let zoomAtual = parseFloat(localStorage.getItem('cnx_mobile_camera_zoom') || '1') || 1;
+    const NIVEIS_ZOOM = [1, 1.5, 2];
+
     let confAlmoxId = null;
     let confAlmoxNome = '';
     let confAlmoxDestinoId = null;
@@ -238,6 +243,142 @@
         setTimeout(() => {
             cardScanner.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 120);
+    }
+
+    // ================= CONTROLE DE CÂMERA (SELETOR DE LENTE, FOCO E ZOOM) =================
+    function garantirControlesCamera() {
+        const reader = document.getElementById('qr-reader');
+        if (!reader || document.getElementById('m-camera-controls')) return;
+
+        const bar = document.createElement('div');
+        bar.id = 'm-camera-controls';
+        bar.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:8px;';
+        bar.innerHTML = `
+            <select id="col-select-camera" style="flex:1; min-width:0; padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#1e293b; font-size:0.78rem; font-weight:600;">
+                <option value="">Carregando câmeras...</option>
+            </select>
+            <button type="button" id="btn-zoom-camera" style="padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; background:#f8fafc; color:#0f172a; font-size:0.78rem; font-weight:700; white-space:nowrap; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                <i data-lucide="zoom-in" style="width:14px; height:14px;"></i>
+                <span id="lbl-zoom-camera">${zoomAtual}x</span>
+            </button>
+        `;
+        reader.parentNode.insertBefore(bar, reader);
+        if (window.lucide) lucide.createIcons();
+
+        document.getElementById('col-select-camera')?.addEventListener('change', async (e) => {
+            const novoId = e.target.value;
+            if (!novoId) return;
+            cameraSelecionadaId = novoId;
+            localStorage.setItem('cnx_mobile_camera_id', novoId);
+            await pararScanner();
+            await iniciarScanner();
+            mostrarToast('Lente alterada!', 'info', 1400);
+        });
+
+        document.getElementById('btn-zoom-camera')?.addEventListener('click', async () => {
+            const idx = NIVEIS_ZOOM.indexOf(zoomAtual);
+            zoomAtual = NIVEIS_ZOOM[(idx + 1) % NIVEIS_ZOOM.length];
+            localStorage.setItem('cnx_mobile_camera_zoom', String(zoomAtual));
+            const lbl = document.getElementById('lbl-zoom-camera');
+            if (lbl) lbl.innerText = `${zoomAtual}x`;
+            await aplicarAjustesLente();
+        });
+    }
+
+    function nomeAmigavelCamera(cam, idx) {
+        const label = (cam.label || '').trim();
+        if (!label) return `Câmera ${idx + 1}`;
+        const lower = label.toLowerCase();
+        const isFront = lower.includes('front') || lower.includes('user') || lower.includes('frontal');
+        const isWide = lower.includes('wide') || lower.includes('0.5') || lower.includes('ultra');
+        const isMacro = lower.includes('macro');
+        const isTele = lower.includes('tele');
+
+        let prefixo = isFront ? 'Frontal' : 'Traseira';
+        if (isWide) prefixo += ' (Ultrawide)';
+        else if (isMacro) prefixo += ' (Macro)';
+        else if (isTele) prefixo += ' (Tele)';
+
+        return `${prefixo} #${idx + 1} - ${label}`;
+    }
+
+    function escolherMelhorCameraPadrao(lista) {
+        if (!lista || lista.length === 0) return '';
+        if (cameraSelecionadaId && lista.some(c => c.id === cameraSelecionadaId)) {
+            return cameraSelecionadaId;
+        }
+
+        const traseiras = lista.filter(c => {
+            const l = (c.label || '').toLowerCase();
+            return l.includes('back') || l.includes('rear') || l.includes('environment') || l.includes('traseira');
+        });
+
+        const candidatas = traseiras.length > 0 ? traseiras : lista;
+
+        // Evita ultrawide / macro na escolha automática inicial
+        const principal = candidatas.find(c => {
+            const l = (c.label || '').toLowerCase();
+            return !l.includes('ultra') && !l.includes('0.5') && !l.includes('macro') && !l.includes('wide');
+        });
+
+        return (principal || candidatas[0]).id;
+    }
+
+    async function atualizarListaCameras() {
+        garantirControlesCamera();
+        const select = document.getElementById('col-select-camera');
+        if (typeof Html5Qrcode === 'undefined' || !select) return;
+
+        try {
+            const lista = await Html5Qrcode.getCameras();
+            camerasDisponiveis = lista || [];
+
+            if (camerasDisponiveis.length === 0) {
+                select.innerHTML = '<option value="">Nenhuma câmera encontrada</option>';
+                return;
+            }
+
+            cameraSelecionadaId = escolherMelhorCameraPadrao(camerasDisponiveis);
+            localStorage.setItem('cnx_mobile_camera_id', cameraSelecionadaId);
+
+            select.innerHTML = camerasDisponiveis.map((cam, idx) =>
+                `<option value="${cam.id}" ${cam.id === cameraSelecionadaId ? 'selected' : ''}>${nomeAmigavelCamera(cam, idx)}</option>`
+            ).join('');
+        } catch (err) {
+            console.warn('Não foi possível listar as câmeras:', err);
+        }
+    }
+
+    async function aplicarAjustesLente() {
+        if (!html5QrCode || !scannerAtivo) return;
+        try {
+            const caps = typeof html5QrCode.getRunningTrackCapabilities === 'function'
+                ? html5QrCode.getRunningTrackCapabilities()
+                : null;
+
+            const advanced = [];
+
+            if (caps?.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+                advanced.push({ focusMode: 'continuous' });
+            }
+
+            const btnZoom = document.getElementById('btn-zoom-camera');
+            if (caps?.zoom) {
+                const minZ = caps.zoom.min ?? 1;
+                const maxZ = caps.zoom.max ?? 1;
+                const alvo = Math.min(Math.max(zoomAtual, minZ), maxZ);
+                advanced.push({ zoom: alvo });
+                if (btnZoom) btnZoom.style.opacity = '1';
+            } else if (btnZoom) {
+                btnZoom.style.opacity = '0.5';
+            }
+
+            if (advanced.length > 0 && typeof html5QrCode.applyVideoConstraints === 'function') {
+                await html5QrCode.applyVideoConstraints({ advanced });
+            }
+        } catch (err) {
+            console.warn('Ajuste de foco/zoom não suportado nesta lente:', err);
+        }
     }
 
     // ================= CONTROLE DE MODAIS E BOTÃO VOLTAR (HISTORY API) =================
@@ -878,13 +1019,47 @@
     async function iniciarScanner() {
         if (scannerAtivo || typeof Html5Qrcode === 'undefined') return;
         try {
-            if (!html5QrCode) html5QrCode = new Html5Qrcode('qr-reader');
+            garantirControlesCamera();
+            if (camerasDisponiveis.length === 0) {
+                await atualizarListaCameras();
+            }
+
+            if (!html5QrCode) {
+                const formatos = typeof Html5QrcodeSupportedFormats !== 'undefined'
+                    ? [
+                        Html5QrcodeSupportedFormats.CODE_128,
+                        Html5QrcodeSupportedFormats.CODE_39,
+                        Html5QrcodeSupportedFormats.QR_CODE,
+                        Html5QrcodeSupportedFormats.DATA_MATRIX,
+                        Html5QrcodeSupportedFormats.EAN_13,
+                        Html5QrcodeSupportedFormats.ITF
+                    ]
+                    : undefined;
+                html5QrCode = formatos
+                    ? new Html5Qrcode('qr-reader', { formatsToSupport: formatos, verbose: false })
+                    : new Html5Qrcode('qr-reader');
+            }
+
+            const cameraConfig = cameraSelecionadaId
+                ? { deviceId: { exact: cameraSelecionadaId } }
+                : { facingMode: 'environment' };
+
             scannerAtivo = true;
             await html5QrCode.start(
-                { facingMode: 'environment' },
-                { fps: 12, qrbox: { width: 260, height: 110 } },
+                cameraConfig,
+                {
+                    fps: 12,
+                    qrbox: { width: 260, height: 110 },
+                    videoConstraints: {
+                        ...(cameraSelecionadaId ? { deviceId: { exact: cameraSelecionadaId } } : { facingMode: 'environment' }),
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                },
                 (texto) => processarCodigoCapturado(texto)
             );
+
+            await aplicarAjustesLente();
             focarAreaCamera();
         } catch (err) {
             scannerAtivo = false;
