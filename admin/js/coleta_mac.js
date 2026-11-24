@@ -474,15 +474,18 @@
             atualizarEstadoCampoOs();
             montarFooterFormulario(true);
             
-            if (meusAlmoxarifadosIds.length === 1) {
-                const a = almoxarifados.find(x => x.id === meusAlmoxarifadosIds[0]);
-                if (a) {
-                    const descFmt = `${window.fmtCod(a.codigo)} - ${a.descricao}`;
-                    inAlmoxId.value = a.id;
-                    inAlmoxDesc.value = descFmt;
-                    inAlmoxDestinoId.value = a.id;
-                    inAlmoxDestinoDesc.value = descFmt;
-                }
+            // Define por padrão o almoxarifado de código "1" (se permitido), ou o único vinculado ao usuário
+            const permitidos = almoxarifados.filter(a => meusAlmoxarifadosIds.includes(a.id));
+            const almoxPadrao =
+                permitidos.find(a => String(a.codigo || '').trim().replace(/^0+/, '') === '1') ||
+                (permitidos.length === 1 ? permitidos[0] : null);
+
+            if (almoxPadrao) {
+                const descFmt = `${window.fmtCod(almoxPadrao.codigo)} - ${almoxPadrao.descricao}`;
+                inAlmoxId.value = almoxPadrao.id;
+                inAlmoxDesc.value = descFmt;
+                inAlmoxDestinoId.value = almoxPadrao.id;
+                inAlmoxDestinoDesc.value = descFmt;
             }
         } else {
             const r = todasColetas.find(x => x.id === id);
