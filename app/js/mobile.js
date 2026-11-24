@@ -238,11 +238,11 @@
     }
 
     function focarAreaCamera() {
-        const cardScanner = document.getElementById('coleta-passo-scanner');
-        if (!cardScanner) return;
+        const alvo = document.getElementById('qr-reader') || document.getElementById('coleta-passo-scanner');
+        if (!alvo) return;
         setTimeout(() => {
-            cardScanner.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 120);
+            alvo.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        }, 180);
     }
 
     // ================= CONTROLE DE CÂMERA (SELETOR DE LENTE, FOCO E ZOOM) =================
@@ -1060,7 +1060,8 @@
             );
 
             await aplicarAjustesLente();
-            focarAreaCamera();
+            // Aguarda o vídeo assumir a altura final e centraliza o leitor na tela
+            setTimeout(() => focarAreaCamera(), 250);
         } catch (err) {
             scannerAtivo = false;
             console.warn('Câmera indisponível, use entrada manual:', err);
