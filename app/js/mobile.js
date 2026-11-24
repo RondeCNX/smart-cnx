@@ -262,7 +262,15 @@
                 <span id="lbl-zoom-camera">${zoomAtual}x</span>
             </button>
         `;
-        reader.parentNode.insertBefore(bar, reader);
+
+        // Insere fora do wrapper relativo da câmera para não deslocar a linha guia
+        const parent = reader.parentNode;
+        if (parent && parent.id !== 'coleta-passo-scanner' && parent.parentNode) {
+            parent.parentNode.insertBefore(bar, parent);
+        } else {
+            parent.insertBefore(bar, reader);
+        }
+
         if (window.lucide) lucide.createIcons();
 
         document.getElementById('col-select-camera')?.addEventListener('change', async (e) => {
@@ -1025,12 +1033,11 @@
             }
 
             if (!html5QrCode) {
+                // Foca em códigos de barras 1D (evita ler QR Codes acidentais na etiqueta)
                 const formatos = typeof Html5QrcodeSupportedFormats !== 'undefined'
                     ? [
                         Html5QrcodeSupportedFormats.CODE_128,
                         Html5QrcodeSupportedFormats.CODE_39,
-                        Html5QrcodeSupportedFormats.QR_CODE,
-                        Html5QrcodeSupportedFormats.DATA_MATRIX,
                         Html5QrcodeSupportedFormats.EAN_13,
                         Html5QrcodeSupportedFormats.ITF
                     ]
@@ -1048,8 +1055,13 @@
             await html5QrCode.start(
                 cameraConfig,
                 {
-                    fps: 12,
-                    qrbox: { width: 260, height: 110 },
+                    fps: 15,
+                    disableFlip: true,
+                    // Faixa estreita horizontal: decodifica somente o código sob a linha guia
+                    qrbox: (viewfinderWidth, viewfinderHeight) => ({
+                        width: Math.min(300, Math.floor(viewfinderWidth * 0.88)),
+                        height: Math.max(44, Math.min(58, Math.floor(viewfinderHeight * 0.16)))
+                    }),
                     videoConstraints: {
                         ...(cameraSelecionadaId ? { deviceId: { exact: cameraSelecionadaId } } : { facingMode: 'environment' }),
                         width: { ideal: 1280 },
@@ -1059,8 +1071,20 @@
                 (texto) => processarCodigoCapturado(texto)
             );
 
+            // Garante a linha guia exatamente no centro da faixa de leitura
+            const readerEl = document.getElementById('qr-reader');
+            if (readerEl) {
+                readerEl.style.position = 'relative';
+                let linha = document.getElementById('m-laser-guide-preciso');
+                if (!linha) {
+                    linha = document.createElement('div');
+                    linha.id = 'm-laser-guide-preciso';
+                    linha.style.cssText = 'position:absolute; left:6%; right:6%; top:50%; height:2px; background:#f26522; box-shadow:0 0 6px rgba(242,101,34,0.9); transform:translateY(-50%); pointer-events:none; z-index:20;';
+                    readerEl.appendChild(linha);
+                }
+            }
+
             await aplicarAjustesLente();
-            // Aguarda o vídeo assumir a altura final e centraliza o leitor na tela
             setTimeout(() => focarAreaCamera(), 250);
         } catch (err) {
             scannerAtivo = false;
