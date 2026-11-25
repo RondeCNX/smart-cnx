@@ -159,6 +159,7 @@
                 usuario:usuarios!usuario_supervisor_id(nome_completo),
                 coletas:coletas_mac(
                     id, mac, numero_serie,
+                    almoxarifado_origem_snapshot, almoxarifado_destino_snapshot,
                     almoxarifado_origem:almoxarifados!almoxarifado_id(codigo, descricao),
                     almoxarifado_destino:almoxarifados!almoxarifado_destino_id(codigo, descricao)
                 )
@@ -181,19 +182,19 @@
             const origensUnicas = [
                 ...new Set(
                     (r.coletas || [])
-                        .map(c => c.almoxarifado_origem ? `${window.fmtCod(c.almoxarifado_origem.codigo)} - ${c.almoxarifado_origem.descricao}` : null)
+                        .map(c => c.almoxarifado_origem_snapshot || (c.almoxarifado_origem ? `${window.fmtCod(c.almoxarifado_origem.codigo)} - ${c.almoxarifado_origem.descricao}` : null))
                         .filter(Boolean)
                 )
             ];
             const destinosUnicos = [
                 ...new Set(
                     (r.coletas || [])
-                        .map(c => c.almoxarifado_destino ? `${window.fmtCod(c.almoxarifado_destino.codigo)} - ${c.almoxarifado_destino.descricao}` : null)
+                        .map(c => c.almoxarifado_destino_snapshot || (c.almoxarifado_destino ? `${window.fmtCod(c.almoxarifado_destino.codigo)} - ${c.almoxarifado_destino.descricao}` : null))
                         .filter(Boolean)
                 )
             ];
 
-            const almoxBase = r.almoxarifado ? `${window.fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : 'Desconhecido';
+            const almoxBase = r.almoxarifado_snapshot || (r.almoxarifado ? `${window.fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : 'Desconhecido');
 
             return {
                 ...r,
@@ -780,14 +781,14 @@
 
     function renderizarGridMacs(editavel, jaSalvos = false) {
         tbodyMacs.innerHTML = macsDisponiveis.map(m => {
-            const pDesc = m.produto ? `${window.fmtCod(m.produto.codigo)} - ${m.produto.descricao}` : '-';
+            const pDesc = m.produto_snapshot || (m.produto ? `${window.fmtCod(m.produto.codigo)} - ${m.produto.descricao}` : '-');
             const mDesc = `<div style="font-weight:800; color:var(--cnx-orange);">${m.mac}</div><div style="font-size:0.7rem; color:#64748b;">SN: ${m.numero_serie || '-'}</div>`;
-            const origDesc = m.almoxarifado_origem
+            const origDesc = m.almoxarifado_origem_snapshot || (m.almoxarifado_origem
                 ? `${window.fmtCod(m.almoxarifado_origem.codigo)} - ${m.almoxarifado_origem.descricao}`
-                : '-';
-            const destDesc = m.almoxarifado_destino
+                : '-');
+            const destDesc = m.almoxarifado_destino_snapshot || (m.almoxarifado_destino
                 ? `${window.fmtCod(m.almoxarifado_destino.codigo)} - ${m.almoxarifado_destino.descricao}`
-                : origDesc;
+                : origDesc);
             const dFmt = m.data_coleta ? new Date(m.data_coleta + 'T12:00:00').toLocaleDateString('pt-BR') : '-';
             const oDesc = `<div style="font-weight:700; color:var(--cnx-blue);">${m.numero_os || '-'}</div><div style="font-size:0.7rem; color:#64748b;">${dFmt}</div>`;
             

@@ -897,7 +897,13 @@ function formatarDadosLog(antigos, novos, tabelaOrigem = null) {
     if (!antigos && !novos) return '';
     let html = '<div class="timeline-details" style="display:flex; flex-direction:column; gap:0.25rem; padding-top: 0.5rem; border-top: 1px dashed #e2e8f0; margin-top: 0.5rem;">';
     
-    const chavesIgnoradas = ['id', 'created_at', 'modificado_em', 'atualizado_em', 'requisicao_id', 'emprestimo_id', 'ajuste_estoque_id', 'senha', 'avatar_url', 'qtd_devolvida'];
+    const chavesIgnoradas = [
+        'id', 'created_at', 'modificado_em', 'atualizado_em', 'requisicao_id',
+        'emprestimo_id', 'ajuste_estoque_id', 'senha', 'avatar_url', 'qtd_devolvida',
+        'produto_snapshot', 'almoxarifado_snapshot', 'almoxarifado_origem_snapshot',
+        'almoxarifado_destino_snapshot', 'almoxarifado_requisitante_snapshot',
+        'almoxarifado_abastecedor_snapshot'
+    ];
     
     if (tabelaOrigem === 'requisicao_itens' && antigos && novos && novos.qtd_enviada && antigos.qtd_enviada !== novos.qtd_enviada) {
         if (Number(novos.qtd_enviada) === Number(novos.qtd_aprovada)) chavesIgnoradas.push('qtd_enviada');
@@ -950,18 +956,24 @@ function formatarDadosLog(antigos, novos, tabelaOrigem = null) {
         try { return JSON.parse(val); } catch { return {}; }
     };
 
-    const renderBlocoDiff = (titulo, htmlAntigo, htmlNovo) => `
+    const renderBlocoDiff = (titulo, htmlAntigo, htmlNovo, labelAntigo = 'ANTERIOR:', labelNovo = 'NOVO:') => {
+        const estiloLabelAntigo = labelAntigo === 'ANTERIOR:'
+            ? 'text-decoration: line-through; opacity: 0.7; margin-bottom: 4px; font-size: 0.6rem; font-weight: 700;'
+            : 'opacity: 0.85; margin-bottom: 4px; font-size: 0.6rem; font-weight: 700;';
+
+        return `
         <div style="background: white; border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden; margin-bottom: 4px;">
             <div style="background: #f8fafc; padding: 4px 8px; font-size: 0.6rem; font-weight: 800; color: var(--cnx-blue); border-bottom: 1px solid #e2e8f0; text-transform: uppercase;">Modificação em: ${titulo}</div>
             <div style="display: flex; flex-direction: row; width: 100%;">
                 <div style="flex: 1; padding: 6px 8px; background: #fef2f2; color: #991b1b; border-right: 1px solid #e2e8f0; font-family: inherit; font-size: 0.7rem; text-align: left;">
-                    <div style="text-decoration: line-through; opacity: 0.7; margin-bottom: 4px; font-size: 0.6rem; font-weight: 700;">ANTERIOR:</div>${htmlAntigo}
+                    <div style="${estiloLabelAntigo}">${labelAntigo}</div>${htmlAntigo}
                 </div>
                 <div style="flex: 1; padding: 6px 8px; background: #ecfdf5; color: #065f46; font-family: inherit; font-size: 0.7rem; text-align: left;">
-                    <div style="margin-bottom: 4px; font-size: 0.6rem; font-weight: 700;">NOVO:</div>${htmlNovo}
+                    <div style="margin-bottom: 4px; font-size: 0.6rem; font-weight: 700;">${labelNovo}</div>${htmlNovo}
                 </div>
             </div>
         </div>`;
+    };
 
     const renderDiffMatrizPermissoes = (antPerms, novPerms) => {
         let out = '';
@@ -1035,8 +1047,11 @@ function formatarDadosLog(antigos, novos, tabelaOrigem = null) {
 
     let produtoDoContexto = '';
     if (tabelaOrigem === 'requisicao_itens' || tabelaOrigem === 'requisicao_divergencias' || tabelaOrigem === 'emprestimo_itens') {
+        const prodSnap = (novos && novos.produto_snapshot) || (antigos && antigos.produto_snapshot) || null;
         const prodId = (novos && novos.produto_id) || (antigos && antigos.produto_id) || null;
-        if (prodId && String(prodId).length > 20) {
+        if (prodSnap) {
+            produtoDoContexto = prodSnap;
+        } else if (prodId && String(prodId).length > 20) {
             produtoDoContexto = window.produtosCacheMap[String(prodId).toLowerCase()] || 'Desconhecido';
         }
     } 
@@ -1051,6 +1066,54 @@ function formatarDadosLog(antigos, novos, tabelaOrigem = null) {
         for (const key in novos) {
             const labelKey = key.toLowerCase();
             if (chavesIgnoradas.includes(labelKey)) continue;
+
+            // Comparação contextual entre etapas nos itens da requisição (só exibe se houver divergência)
+            if (tabelaOrigem === 'requisicao_itens') {
+                const valorAntigoVazio = antigos[key] === null || antigos[key] === undefined || antigos[key] === '';
+                const valorNovoPreenchido = novos[key] !== null && novos[key] !== undefined && novos[key] !== '';
+
+                if (valorAntigoVazio && valorNovoPreenchido) {
+                    if (labelKey === 'qtd_aprovada') {
+                        const qtdRef = novos.qtd_solicitada ?? antigos.qtd_solicitada;
+                        if (Number(novos[key]) === Number(qtdRef)) continue;
+                        temAlteracao = true;
+                        blocosDiff += renderBlocoDiff(
+                            'Qtd. Aprovada vs. Solicitada',
+                            `<div style="margin-bottom: 2px;">${formatarValorAmigavel('qtd_solicitada', qtdRef)}</div>`,
+                            `<div style="margin-bottom: 2px;">${formatarValorAmigavel('qtd_aprovada', novos[key])}</div>`,
+                            'QTD. SOLICITADA:',
+                            'QTD. APROVADA:'
+                        );
+                        continue;
+                    }
+                    if (labelKey === 'qtd_enviada') {
+                        const qtdRef = novos.qtd_aprovada ?? antigos.qtd_aprovada ?? novos.qtd_solicitada ?? antigos.qtd_solicitada;
+                        if (Number(novos[key]) === Number(qtdRef)) continue;
+                        temAlteracao = true;
+                        blocosDiff += renderBlocoDiff(
+                            'Qtd. Enviada vs. Aprovada',
+                            `<div style="margin-bottom: 2px;">${formatarValorAmigavel('qtd_aprovada', qtdRef)}</div>`,
+                            `<div style="margin-bottom: 2px;">${formatarValorAmigavel('qtd_enviada', novos[key])}</div>`,
+                            'QTD. APROVADA:',
+                            'QTD. ENVIADA:'
+                        );
+                        continue;
+                    }
+                    if (labelKey === 'qtd_recebida') {
+                        const qtdRef = novos.qtd_aprovada ?? antigos.qtd_aprovada ?? novos.qtd_enviada ?? antigos.qtd_enviada ?? novos.qtd_solicitada;
+                        if (Number(novos[key]) === Number(qtdRef)) continue;
+                        temAlteracao = true;
+                        blocosDiff += renderBlocoDiff(
+                            'Qtd. Conferida vs. Aprovada',
+                            `<div style="margin-bottom: 2px;">${formatarValorAmigavel('qtd_aprovada', qtdRef)}</div>`,
+                            `<div style="margin-bottom: 2px;">${formatarValorAmigavel('qtd_recebida', novos[key])}</div>`,
+                            'QTD. APROVADA:',
+                            'QTD. CONFERIDA:'
+                        );
+                        continue;
+                    }
+                }
+            }
 
             if (labelKey === 'historico_acessos') {
                 const antAcc = parseJsonSeguro(antigos[key]);
@@ -1087,16 +1150,26 @@ function formatarDadosLog(antigos, novos, tabelaOrigem = null) {
         html += blocosDiff;
 
     } else if (antigos && !novos) { // DELETE
+        let linhasRemovido = '';
+        for (const key in antigos) {
+            const labelKey = key.toLowerCase();
+            if (chavesIgnoradas.includes(labelKey)) continue;
+
+            // Omite campos em branco/nulos nos dados do item removido
+            const valRaw = antigos[key];
+            if (valRaw === null || valRaw === undefined || valRaw === '' || valRaw === 'NULO') continue;
+
+            const labelFormatado = (rotulosAmigaveis[labelKey] || key).replace(/_/g, ' ').toUpperCase();
+            const valFmt = formatarValorAmigavel(key, valRaw);
+            linhasRemovido += `<div style="margin-bottom: 2px;"><strong>${labelFormatado}:</strong> ${valFmt}</div>`;
+        }
+
+        if (!linhasRemovido) return '';
+
         if (produtoDoContexto) html += `<div style="font-size: 0.75rem; font-weight: 800; color: #ef4444; margin-bottom: 6px; text-decoration: line-through;">${produtoDoContexto}</div>`;
         html += `<div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; padding: 8px; color: #991b1b; font-size: 0.7rem; text-align: left;">`;
         html += `<div style="font-weight: 800; margin-bottom: 4px; text-transform: uppercase; border-bottom: 1px solid #fecaca; padding-bottom: 4px;">Dados do Item Removido:</div>`;
-        for(const key in antigos) {
-            if (chavesIgnoradas.includes(key.toLowerCase())) continue;
-            const labelKey = key.toLowerCase();
-            const labelFormatado = (rotulosAmigaveis[labelKey] || key).replace(/_/g, ' ').toUpperCase();
-            const valFmt = formatarValorAmigavel(key, antigos[key]);
-            html += `<div style="margin-bottom: 2px;"><strong>${labelFormatado}:</strong> ${valFmt}</div>`;
-        }
+        html += linhasRemovido;
         html += `</div>`;
         
     } else if (novos && !antigos) { // INSERT POSTERIOR

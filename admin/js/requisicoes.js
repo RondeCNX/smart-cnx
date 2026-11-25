@@ -252,8 +252,8 @@
             todasRequisicoes = (data || []).map(r => ({
                 ...r,
                 codigoFormatado: String(r.codigo).padStart(6, '0'),
-                requisitanteNome: r.requisitante ? `${window.fmtCod(r.requisitante.codigo)} - ${r.requisitante.descricao}` : 'Desconhecido',
-                abastecedorNome: r.abastecedor ? `${window.fmtCod(r.abastecedor.codigo)} - ${r.abastecedor.descricao}` : 'Desconhecido',
+                requisitanteNome: r.almoxarifado_requisitante_snapshot || (r.requisitante ? `${window.fmtCod(r.requisitante.codigo)} - ${r.requisitante.descricao}` : 'Desconhecido'),
+                abastecedorNome: r.almoxarifado_abastecedor_snapshot || (r.abastecedor ? `${window.fmtCod(r.abastecedor.codigo)} - ${r.abastecedor.descricao}` : 'Desconhecido'),
                 solicitanteNome: r.user_solic ? r.user_solic.nome_completo : 'Desconhecido',
                 atendenteNome: r.user_atend ? r.user_atend.nome_completo : 'Aguardando atendimento'
             }));
@@ -821,7 +821,7 @@
         lblUserSol.innerText = 'Registro pendente...'; lblUserAtd.innerText = 'Aguardando atendimento...';
         
         badgeStatusModal.innerHTML = '';
-        tabBtns[0].click(); 
+        tabBtns[0]?.click();
 
         const colsAprov = moduloContent.querySelectorAll('.col-aprov');
         const colsReceb = moduloContent.querySelectorAll('.col-receb');
@@ -878,16 +878,31 @@
 
             const { data: itens } = await window.db.from('requisicao_itens').select('*, produtos(codigo, descricao)').eq('requisicao_id', reqId);
             if (itens) {
-                itensReqCache = itens.map(i => ({
-                    id: i.id,
-                    produto_id: i.produto_id,
-                    codigo: i.produtos ? window.fmtCod(i.produtos.codigo) : '-',
-                    descricao: i.produtos ? i.produtos.descricao : 'Item Excluído',
-                    qtd_solicitada: i.qtd_solicitada,
-                    qtd_aprovada: i.qtd_aprovada,
-                    qtd_enviada: i.qtd_enviada,
-                    qtd_recebida: i.qtd_recebida
-                }));
+                itensReqCache = itens.map(i => {
+                    let cod = i.produtos ? window.fmtCod(i.produtos.codigo) : '-';
+                    let desc = i.produtos ? i.produtos.descricao : 'Item Excluído';
+
+                    if (i.produto_snapshot) {
+                        const sep = i.produto_snapshot.indexOf(' - ');
+                        if (sep !== -1) {
+                            cod = i.produto_snapshot.slice(0, sep).trim();
+                            desc = i.produto_snapshot.slice(sep + 3).trim();
+                        } else {
+                            desc = i.produto_snapshot;
+                        }
+                    }
+
+                    return {
+                        id: i.id,
+                        produto_id: i.produto_id,
+                        codigo: cod,
+                        descricao: desc,
+                        qtd_solicitada: i.qtd_solicitada,
+                        qtd_aprovada: i.qtd_aprovada,
+                        qtd_enviada: i.qtd_enviada,
+                        qtd_recebida: i.qtd_recebida
+                    };
+                });
             }
 
             inReqDesc.readOnly = true;
@@ -920,6 +935,7 @@
                 colsReceb.forEach(el => el.style.display = 'none');
                 colsAcao.forEach(el => el.style.display = 'table-cell'); 
                 montarFooterFormulario(true, 'Aprovar / Separar');
+                tabBtns[1]?.click();
                 
             } else if (modo === 'despachar') {
                 if (btnBuscaProduto) btnBuscaProduto.style.display = 'none'; 
@@ -929,6 +945,7 @@
                 colsAcao.forEach(el => el.style.display = 'none');
                 if (painelEnvio) painelEnvio.style.display = 'block';
                 montarFooterFormulario(true, 'Confirmar Envio (Faturamento)');
+                (tabBtns[3] || tabBtns[tabBtns.length - 1])?.click();
                 
             } else if (modo === 'receber') {
                 if (btnBuscaProduto) btnBuscaProduto.style.display = 'none'; 
@@ -938,6 +955,7 @@
                 colsReceb.forEach(el => el.style.display = 'table-cell');
                 colsAcao.forEach(el => el.style.display = 'none');
                 montarFooterFormulario(true, 'Confirmar Recebimento');
+                tabBtns[1]?.click();
             }
             formFoiAlterado = false; 
         }
@@ -1224,7 +1242,6 @@
         const modalAcoes = document.getElementById('modal-anexo-req');
         if (modalAcoes) modalAcoes.style.display = 'none';
 
-        // Injeta modal iFrame
         if (!document.getElementById('pdf-frame-modal')) {
             document.body.insertAdjacentHTML('beforeend', `
                 <div class="modal-overlay" id="pdf-frame-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); z-index: 11000; align-items: center; justify-content: center; padding: 1rem;">
@@ -1273,7 +1290,7 @@
             doc.setFontSize(14); doc.setTextColor(242, 101, 34); doc.setFont("helvetica", "bold");
             doc.text("FICHA DE SEPARAÇÃO E ENVIO DE MATERIAIS", pageWidth / 2, 100, { align: 'center' }); 
 
-            // DADOS DA REQUISIÇÃO
+            // DADOS DA REQUISIÇÃO (já usam os snapshots carregados em todasRequisicoes)
             doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(50, 50, 50);
             
             doc.text(`Requisição N.º: ${r.codigoFormatado}`, margemEsq, 130);
@@ -1288,14 +1305,33 @@
             doc.text(`Usuário Solicitante: ${r.solicitanteNome}`, margemDir, 160, { align: 'right' });
             
             // TABELA
-            const { data: itensDB } = await window.db.from('requisicao_itens').select('qtd_solicitada, qtd_aprovada, qtd_enviada, produtos(codigo, descricao)').eq('requisicao_id', reqIdParaAnexo);
+            const { data: itensDB } = await window.db
+                .from('requisicao_itens')
+                .select('qtd_solicitada, qtd_aprovada, qtd_enviada, produto_snapshot, produtos(codigo, descricao)')
+                .eq('requisicao_id', reqIdParaAnexo);
+
             const colunas = [["Código", "Produto", "Qtd Enviada", "Check"]];
-            const linhas = (itensDB || []).map(i => [
-                i.produtos?.codigo ? window.fmtCod(i.produtos.codigo) : '-', 
-                i.produtos?.descricao || '-', 
-                i.qtd_enviada !== null ? i.qtd_enviada : (i.qtd_aprovada !== null ? i.qtd_aprovada : i.qtd_solicitada), 
-                ""
-            ]);
+            const linhas = (itensDB || []).map(i => {
+                let cod = i.produtos?.codigo ? window.fmtCod(i.produtos.codigo) : '-';
+                let desc = i.produtos?.descricao || '-';
+
+                if (i.produto_snapshot) {
+                    const sep = i.produto_snapshot.indexOf(' - ');
+                    if (sep !== -1) {
+                        cod = i.produto_snapshot.slice(0, sep).trim();
+                        desc = i.produto_snapshot.slice(sep + 3).trim();
+                    } else {
+                        desc = i.produto_snapshot;
+                    }
+                }
+
+                return [
+                    cod,
+                    desc,
+                    i.qtd_enviada !== null ? i.qtd_enviada : (i.qtd_aprovada !== null ? i.qtd_aprovada : i.qtd_solicitada),
+                    ""
+                ];
+            });
 
             doc.autoTable({
                 startY: 180, head: colunas, body: linhas, theme: 'grid',

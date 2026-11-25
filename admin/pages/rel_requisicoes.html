@@ -95,11 +95,30 @@
         </div>
     </div>
 
+    <!-- Opções de Agrupamento e Ordenação -->
+    <div style="margin-top: 1rem; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="layers" style="width: 16px; height: 16px; color: var(--cnx-orange);"></i>
+            <span style="font-size: 0.75rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Agrupamento do Relatório (Ordem Alfabética):</span>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn-agrupamento-rel-req active" data-grupo="nenhum" style="background: var(--cnx-blue); color: white; border: 1px solid var(--cnx-blue); padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s;">
+                <i data-lucide="list" style="width: 14px;"></i> Sem Agrupamento
+            </button>
+            <button type="button" class="btn-agrupamento-rel-req" data-grupo="requisitante" style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s;">
+                <i data-lucide="warehouse" style="width: 14px;"></i> Por Requisitante (A–Z)
+            </button>
+            <button type="button" class="btn-agrupamento-rel-req" data-grupo="produto" style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s;">
+                <i data-lucide="package" style="width: 14px;"></i> Por Produto (A–Z)
+            </button>
+        </div>
+    </div>
+
     <!-- Aviso de Estado -->
-    <div id="box-status-rel-req" style="margin-top: 1.5rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 2.5rem 1.5rem; text-align: center; color: #64748b;">
+    <div id="box-status-rel-req" style="margin-top: 1.25rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 2.25rem 1.5rem; text-align: center; color: #64748b;">
         <i data-lucide="file-spreadsheet" style="width: 40px; height: 40px; color: var(--cnx-blue); opacity: 0.4; margin-bottom: 0.75rem;"></i>
         <div style="font-weight: 800; color: var(--cnx-blue); font-size: 0.95rem;">Relatório pronto para emissão</div>
-        <div style="font-size: 0.8rem; margin-top: 4px;">Adicione os filtros desejados acima e clique em <strong>Gerar Relatório</strong> para escolher entre PDF ou Excel.</div>
+        <div style="font-size: 0.8rem; margin-top: 4px;">Adicione os filtros desejados acima, escolha o agrupamento e clique em <strong>Gerar Relatório</strong> para escolher entre PDF ou Excel.</div>
     </div>
 
     <!-- MODAL DE ESCOLHA DO FORMATO (PDF / EXCEL) -->

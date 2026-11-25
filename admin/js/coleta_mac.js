@@ -176,9 +176,9 @@
 
         todasColetas = (data || []).map(r => ({
             ...r,
-            almoxarifadoDesc: r.almoxarifado ? `${window.fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : 'Desconhecido',
-            almoxarifadoDestinoDesc: r.almoxarifado_destino ? `${window.fmtCod(r.almoxarifado_destino.codigo)} - ${r.almoxarifado_destino.descricao}` : '-',
-            produtoDesc: r.produto ? `${window.fmtCod(r.produto.codigo)} - ${r.produto.descricao}` : 'Desconhecido',
+            almoxarifadoDesc: r.almoxarifado_origem_snapshot || (r.almoxarifado ? `${window.fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : 'Desconhecido'),
+            almoxarifadoDestinoDesc: r.almoxarifado_destino_snapshot || (r.almoxarifado_destino ? `${window.fmtCod(r.almoxarifado_destino.codigo)} - ${r.almoxarifado_destino.descricao}` : '-'),
+            produtoDesc: r.produto_snapshot || (r.produto ? `${window.fmtCod(r.produto.codigo)} - ${r.produto.descricao}` : 'Desconhecido'),
             estoquistaNome: r.usuario ? r.usuario.nome_completo : 'Desconhecido'
         }));
 
@@ -779,8 +779,21 @@
             inOs.value = r.numero_os || '';
             inObs.value = r.observacoes || '';
             inProdutoId.value = r.produto_consumo_id || '';
-            inProdutoCod.value = r.produto ? window.fmtCod(r.produto.codigo) : '';
-            inProdutoDesc.value = r.produto ? r.produto.descricao : (r.produtoDesc || '');
+
+            let prodCod = r.produto ? window.fmtCod(r.produto.codigo) : '';
+            let prodDesc = r.produto ? r.produto.descricao : (r.produtoDesc || '');
+            if (r.produto_snapshot) {
+                const sep = r.produto_snapshot.indexOf(' - ');
+                if (sep !== -1) {
+                    prodCod = r.produto_snapshot.slice(0, sep).trim();
+                    prodDesc = r.produto_snapshot.slice(sep + 3).trim();
+                } else {
+                    prodDesc = r.produto_snapshot;
+                }
+            }
+            inProdutoCod.value = prodCod;
+            inProdutoDesc.value = prodDesc;
+
             inMac.value = r.mac || '';
             inSerie.value = r.numero_serie || '';
             

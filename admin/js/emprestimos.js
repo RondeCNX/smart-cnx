@@ -187,7 +187,7 @@
         almoxarifadosVinculadosIds = acessoTodos ? almoxarifados.map(a => a.id) : acessosDiretos;
 
         let query = window.db.from('emprestimos')
-            .select(`*, usuarios(nome_completo), almoxarifado:almoxarifados(codigo, descricao), itens:emprestimo_itens(status, produtos(descricao, codigo))`)
+            .select(`*, usuarios(nome_completo), almoxarifado:almoxarifados(codigo, descricao), itens:emprestimo_itens(status, produto_snapshot, produtos(descricao, codigo))`)
             .order('codigo', { ascending: false });
 
         if (!acessoTodos) {
@@ -202,7 +202,7 @@
         const hoje = new Date(); hoje.setHours(0,0,0,0);
 
         todosEmprestimos = (data || []).map(r => {
-            const nomesEquips = r.itens ? r.itens.map(i => i.produtos?.descricao).join(' ') : '';
+            const nomesEquips = r.itens ? r.itens.map(i => i.produto_snapshot || i.produtos?.descricao || '').join(' ') : '';
             
             let statusCalc = r.status;
             if (statusCalc === 'ATIVO' && r.previsao_devolucao) {
@@ -213,6 +213,7 @@
             return {
                 ...r,
                 codigoFormatado: String(r.codigo).padStart(6, '0'),
+                almoxarifadoNome: r.almoxarifado_snapshot || (r.almoxarifado ? `${window.fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : 'Desconhecido'),
                 equipamentosBusca: nomesEquips.toUpperCase(),
                 statusCalculado: statusCalc
             };
@@ -418,8 +419,12 @@
                     btnHtml += `<button class="btn-acao btn-devolver" data-id="${r.id}" title="Efetuar Devolução" style="background:none; border:none; color:#16a34a; cursor:pointer;"><i data-lucide="log-in" style="width:16px;"></i></button>`;
                 }
                 if (permissoesAcesso.delete) {
-                    btnHtml += `<button class="btn-acao btn-cancelar" data-id="${r.id}" title="Cancelar Empréstimo" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="x-circle" style="width:16px;"></i></button>`;
+                    btnHtml += `<button class="btn-acao btn-cancelar" data-id="${r.id}" title="Cancelar Empréstimo" style="background:none; border:none; color:#f59e0b; cursor:pointer;"><i data-lucide="x-circle" style="width:16px;"></i></button>`;
                 }
+            }
+
+            if (permissoesAcesso.delete) {
+                btnHtml += `<button class="btn-acao btn-excluir" data-id="${r.id}" title="Excluir Empréstimo" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="trash-2" style="width:16px;"></i></button>`;
             }
 
             return `
@@ -472,6 +477,25 @@
                 const obs = r.observacoes ? `${r.observacoes}\n\n[CANCELADO]: ${motivo.toUpperCase()}` : `[CANCELADO]: ${motivo.toUpperCase()}`;
                 await window.db.from('emprestimos').update({ status: 'CANCELADO', observacoes: obs }).eq('id', id);
                 window.appAlert('Sucesso', 'Empréstimo cancelado.', 'success'); buscarEmprestimos();
+            }
+            else if (btnAcao.classList.contains('btn-excluir')) {
+                if (!permissoesAcesso.delete) {
+                    window.appAlert('Acesso Negado', 'Você não tem permissão para excluir empréstimos.', 'error');
+                    return;
+                }
+                const conf = await window.appConfirm('Excluir Empréstimo', 'Tem certeza que deseja apagar este empréstimo permanentemente?', 'danger');
+                if (conf) {
+                    try {
+                        await window.db.from('emprestimo_itens').delete().eq('emprestimo_id', id);
+                        const { error } = await window.db.from('emprestimos').delete().eq('id', id);
+                        if (error) throw error;
+                        window.appAlert('Sucesso', 'Empréstimo excluído.', 'success');
+                        buscarEmprestimos();
+                    } catch (err) {
+                        console.error('Erro ao excluir empréstimo:', err);
+                        window.appAlert('Erro', 'Não foi possível excluir o empréstimo.', 'error');
+                    }
+                }
             }
             else if (btnAcao.classList.contains('btn-gestao-anexo')) {
                 abrirMenuAnexo(id, btnAcao.dataset.temAnexo === 'true');
@@ -691,7 +715,7 @@
         if(inObsDev) inObsDev.value = '';
         
         badgeStatusModal.innerHTML = '';
-        tabBtns[0].click(); 
+        tabBtns[0]?.click();
 
         const colsDev = moduloContent.querySelectorAll('.col-devolv');
         const colsAcao = moduloContent.querySelectorAll('.col-acao');
@@ -727,7 +751,7 @@
             badgeStatusModal.innerHTML = getStatusBadge(r.statusCalculado);
             
             inEmpId.value = r.almoxarifado_id;
-            inEmpDesc.value = r.almoxarifado ? `${window.fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : '';
+            inEmpDesc.value = r.almoxarifadoNome || '';
             inResponsavel.value = r.responsavel;
             inDataSaida.value = r.data_emprestimo ? r.data_emprestimo.split('T')[0] : '';
             inDataPrev.value = r.previsao_devolucao ? r.previsao_devolucao.split('T')[0] : '';
@@ -735,15 +759,30 @@
 
             const { data: itens } = await window.db.from('emprestimo_itens').select('*, produtos(codigo, descricao)').eq('emprestimo_id', empId);
             if (itens) {
-                itensEmpCache = itens.map(i => ({
-                    id: i.id,
-                    produto_id: i.produto_id,
-                    codigo: i.produtos ? window.fmtCod(i.produtos.codigo) : '-',
-                    descricao: i.produtos ? i.produtos.descricao : 'Excluído',
-                    qtd_emprestada: i.qtd_emprestada,
-                    status_item: i.status || 'PENDENTE',
-                    status_item_original: i.status || 'PENDENTE'
-                }));
+                itensEmpCache = itens.map(i => {
+                    let cod = i.produtos ? window.fmtCod(i.produtos.codigo) : '-';
+                    let desc = i.produtos ? i.produtos.descricao : 'Excluído';
+
+                    if (i.produto_snapshot) {
+                        const sep = i.produto_snapshot.indexOf(' - ');
+                        if (sep !== -1) {
+                            cod = i.produto_snapshot.slice(0, sep).trim();
+                            desc = i.produto_snapshot.slice(sep + 3).trim();
+                        } else {
+                            desc = i.produto_snapshot;
+                        }
+                    }
+
+                    return {
+                        id: i.id,
+                        produto_id: i.produto_id,
+                        codigo: cod,
+                        descricao: desc,
+                        qtd_emprestada: i.qtd_emprestada,
+                        status_item: i.status || 'PENDENTE',
+                        status_item_original: i.status || 'PENDENTE'
+                    };
+                });
             }
 
             inEmpDesc.readOnly = true;
@@ -783,6 +822,7 @@
                 colsAcao.forEach(el => el.style.display = 'none');
                 
                 montarFooterFormulario(true, 'Confirmar Devolução');
+                tabBtns[1]?.click();
             }
             formFoiAlterado = false; 
         }
@@ -1115,19 +1155,30 @@
             
             const nomeCriador = r.usuarios ? r.usuarios.nome_completo : 'Sistema';
             doc.text(`Criado por: ${nomeCriador}`, margemEsq, 145);
-            
-            const codigoAlmox = r.almoxarifado ? window.fmtCod(r.almoxarifado.codigo) : '';
-            const nomeAlmox = r.almoxarifado ? r.almoxarifado.descricao : 'Desconhecida';
-            doc.text(`Origem: ${codigoAlmox} - ${nomeAlmox}`, margemDir, 145, { align: 'right' });
+            doc.text(`Origem: ${r.almoxarifadoNome || 'Desconhecida'}`, margemDir, 145, { align: 'right' });
 
-            const { data: itensDB } = await window.db.from('emprestimo_itens').select('qtd_emprestada, produtos(codigo, descricao)').eq('emprestimo_id', empIdParaAnexo);
+            const { data: itensDB } = await window.db
+                .from('emprestimo_itens')
+                .select('qtd_emprestada, produto_snapshot, produtos(codigo, descricao)')
+                .eq('emprestimo_id', empIdParaAnexo);
             
             const colunas = [["ID Equipamento", "Descrição", "Qtd"]];
-            const linhas = (itensDB || []).map(i => [
-                i.produtos?.codigo ? window.fmtCod(i.produtos.codigo) : '-', 
-                i.produtos?.descricao || '-', 
-                i.qtd_emprestada 
-            ]);
+            const linhas = (itensDB || []).map(i => {
+                let cod = i.produtos?.codigo ? window.fmtCod(i.produtos.codigo) : '-';
+                let desc = i.produtos?.descricao || '-';
+
+                if (i.produto_snapshot) {
+                    const sep = i.produto_snapshot.indexOf(' - ');
+                    if (sep !== -1) {
+                        cod = i.produto_snapshot.slice(0, sep).trim();
+                        desc = i.produto_snapshot.slice(sep + 3).trim();
+                    } else {
+                        desc = i.produto_snapshot;
+                    }
+                }
+
+                return [cod, desc, i.qtd_emprestada];
+            });
 
             doc.autoTable({
                 startY: 165, head: colunas, body: linhas, theme: 'grid',

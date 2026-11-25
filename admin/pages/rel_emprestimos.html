@@ -76,7 +76,7 @@
     </div>
 
     <!-- Cards de Resumo -->
-    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 14px 0;">
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 14px 0 10px 0;">
         <div style="background: white; border: 1px solid #e2e8f0; border-left: 4px solid var(--cnx-blue); border-radius: 8px; padding: 1.1rem 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
             <div style="font-size: 0.7rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Empréstimos Encontrados</div>
             <div id="kpi-emp-total" style="font-size: 1.75rem; font-weight: 800; color: var(--cnx-blue); line-height: 1;">0</div>
@@ -95,11 +95,33 @@
         </div>
     </div>
 
+    <!-- Opções de Agrupamento e Ordenação -->
+    <div style="margin-bottom: 14px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="layers" style="width: 16px; height: 16px; color: var(--cnx-orange);"></i>
+            <span style="font-size: 0.75rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Agrupamento do Relatório (Ordem Alfabética):</span>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn-agrupamento-rel-emp active" data-grupo="nenhum" style="background: var(--cnx-blue); color: white; border: 1px solid var(--cnx-blue); padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s;">
+                <i data-lucide="list" style="width: 14px;"></i> Sem Agrupamento
+            </button>
+            <button type="button" class="btn-agrupamento-rel-emp" data-grupo="responsavel" style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s;">
+                <i data-lucide="user" style="width: 14px;"></i> Por Responsável (A–Z)
+            </button>
+            <button type="button" class="btn-agrupamento-rel-emp" data-grupo="equipamento" style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s;">
+                <i data-lucide="wrench" style="width: 14px;"></i> Por Equipamento (A–Z)
+            </button>
+            <button type="button" class="btn-agrupamento-rel-emp" data-grupo="origem" style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s;">
+                <i data-lucide="warehouse" style="width: 14px;"></i> Por Origem (A–Z)
+            </button>
+        </div>
+    </div>
+
     <!-- Área Limpa Pronta para Emissão -->
-    <div style="flex: 1; background: white; border: 1px dashed #cbd5e1; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.5rem; text-align: center; min-height: 220px;">
+    <div style="flex: 1; background: white; border: 1px dashed #cbd5e1; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.5rem 1.5rem; text-align: center; min-height: 200px;">
         <i data-lucide="file-text" style="width: 40px; height: 40px; color: #94a3b8; margin-bottom: 0.85rem;"></i>
         <h3 style="margin: 0 0 0.4rem 0; font-size: 1rem; font-weight: 800; color: var(--cnx-blue);">Relatório pronto para emissão</h3>
-        <p style="margin: 0; font-size: 0.82rem; color: #64748b;">Adicione os filtros desejados acima e clique em <strong>Gerar Relatório</strong> para escolher entre PDF ou Excel.</p>
+        <p style="margin: 0; font-size: 0.82rem; color: #64748b;">Adicione os filtros desejados acima, escolha o agrupamento e clique em <strong>Gerar Relatório</strong> para escolher entre PDF ou Excel.</p>
     </div>
 
     <!-- MODAL ESCOLHA DE FORMATO (PDF / EXCEL) -->

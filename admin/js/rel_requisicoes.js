@@ -20,6 +20,7 @@
     const btnAplicarFiltro = moduloContent.querySelector('#btn-aplicar-filtro');
     const btnLimparFiltros = moduloContent.querySelector('#btn-limpar-filtros');
     const btnRefresh = moduloContent.querySelector('#btn-refresh-rel-req');
+    const btnsAgrupamento = moduloContent.querySelectorAll('.btn-agrupamento-rel-req');
 
     // KPIs e Status
     const lblTotalReqs = moduloContent.querySelector('#lbl-total-reqs');
@@ -44,6 +45,7 @@
     let linhasBase = [];
     let linhasFiltradas = [];
     let filtrosAtivos = [];
+    let agrupamentoAtual = 'nenhum'; // 'nenhum' | 'requisitante' | 'produto'
 
     const fmtCod = (cod) => {
         if (typeof window.fmtCod === 'function') return window.fmtCod(cod);
@@ -51,6 +53,51 @@
         const str = String(cod).trim();
         return /^\d+$/.test(str) ? str.padStart(6, '0') : str;
     };
+
+    const extrairNomeOrdenacao = (texto) => {
+        const s = String(texto || '').trim();
+        const idx = s.indexOf(' - ');
+        return idx !== -1 ? s.slice(idx + 3).trim() : s;
+    };
+
+    const cmpAlfa = (a, b) => extrairNomeOrdenacao(a).localeCompare(extrairNomeOrdenacao(b), 'pt-BR', { sensitivity: 'base', numeric: true });
+
+    function obterLinhasOrdenadas() {
+        const lista = [...linhasFiltradas];
+        if (agrupamentoAtual === 'requisitante') {
+            lista.sort((a, b) =>
+                cmpAlfa(a.destino, b.destino) ||
+                cmpAlfa(a.produto, b.produto) ||
+                String(b.codigo).localeCompare(String(a.codigo))
+            );
+        } else if (agrupamentoAtual === 'produto') {
+            lista.sort((a, b) =>
+                cmpAlfa(a.produto, b.produto) ||
+                cmpAlfa(a.destino, b.destino) ||
+                String(b.codigo).localeCompare(String(a.codigo))
+            );
+        }
+        return lista;
+    }
+
+    function obterLabelAgrupamento() {
+        if (agrupamentoAtual === 'requisitante') return 'Por Requisitante (A–Z)';
+        if (agrupamentoAtual === 'produto') return 'Por Produto (A–Z)';
+        return 'Sem Agrupamento';
+    }
+
+    btnsAgrupamento.forEach(btn => {
+        btn.addEventListener('click', () => {
+            agrupamentoAtual = btn.dataset.grupo || 'nenhum';
+            btnsAgrupamento.forEach(b => {
+                const ativo = b === btn;
+                b.classList.toggle('active', ativo);
+                b.style.background = ativo ? 'var(--cnx-blue)' : '#f8fafc';
+                b.style.color = ativo ? 'white' : '#475569';
+                b.style.borderColor = ativo ? 'var(--cnx-blue)' : '#cbd5e1';
+            });
+        });
+    });
 
     // ================= CARGA DE DADOS =================
     async function inicializar() {
@@ -98,11 +145,12 @@
             .select(`
                 id, codigo, criado_em, status, numero_pedido,
                 almoxarifado_requisitante_id, almoxarifado_abastecedor_id, usuario_solicitante_id,
+                almoxarifado_requisitante_snapshot, almoxarifado_abastecedor_snapshot,
                 requisitante:almoxarifados!almoxarifado_requisitante_id(codigo, descricao),
                 abastecedor:almoxarifados!almoxarifado_abastecedor_id(codigo, descricao),
                 user_solic:usuarios!usuario_solicitante_id(nome_completo),
                 itens:requisicao_itens(
-                    id, produto_id, qtd_solicitada, qtd_aprovada, qtd_enviada, qtd_recebida,
+                    id, produto_id, produto_snapshot, qtd_solicitada, qtd_aprovada, qtd_enviada, qtd_recebida,
                     produtos(codigo, descricao)
                 )
             `)
@@ -131,15 +179,15 @@
             const codigoFmt = String(r.codigo).padStart(6, '0');
             const dataIso = r.criado_em ? r.criado_em.split('T')[0] : '';
             const dataBr = r.criado_em ? new Date(r.criado_em).toLocaleDateString('pt-BR') : '-';
-            const origem = r.abastecedor ? `${fmtCod(r.abastecedor.codigo)} - ${r.abastecedor.descricao}` : '-';
-            const destino = r.requisitante ? `${fmtCod(r.requisitante.codigo)} - ${r.requisitante.descricao}` : '-';
+            const origem = r.almoxarifado_abastecedor_snapshot || (r.abastecedor ? `${fmtCod(r.abastecedor.codigo)} - ${r.abastecedor.descricao}` : '-');
+            const destino = r.almoxarifado_requisitante_snapshot || (r.requisitante ? `${fmtCod(r.requisitante.codigo)} - ${r.requisitante.descricao}` : '-');
             const solicitante = r.user_solic ? r.user_solic.nome_completo : '-';
             const itens = r.itens && r.itens.length > 0 ? r.itens : [null];
 
             itens.forEach(item => {
                 const prodCod = item?.produtos?.codigo ? fmtCod(item.produtos.codigo) : '';
                 const prodDesc = item?.produtos?.descricao || '-';
-                const produtoCompleto = prodCod ? `${prodCod} - ${prodDesc}` : prodDesc;
+                const produtoCompleto = item?.produto_snapshot || (prodCod ? `${prodCod} - ${prodDesc}` : prodDesc);
                 const qtdSolic = item?.qtd_solicitada ?? 0;
                 const qtdEnv = item?.qtd_enviada ?? item?.qtd_aprovada ?? null;
                 const qtdRec = item?.qtd_recebida ?? null;
@@ -337,8 +385,10 @@
             window.appAlert('Atenção', 'Não há dados para exportar com os filtros atuais.', 'warning');
             return;
         }
+
+        const linhasOrdenadas = obterLinhasOrdenadas();
         const headers = ['Req', 'Data', 'Quem Pediu', 'Origem', 'Destino', 'Produto', 'Qtd Solicitada', 'Qtd Enviada', 'Qtd Recebida', 'Divergencia', 'Status'];
-        const rows = linhasFiltradas.map(l => [
+        const rows = linhasOrdenadas.map(l => [
             l.codigo, l.dataBr, l.solicitante, l.origem, l.destino, l.produto,
             l.qtdSolic, l.qtdEnv ?? '', l.qtdRec ?? '', l.temDivergencia ? l.dif : '0', l.status
         ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(';'));
@@ -347,7 +397,8 @@
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `relatorio_requisicoes_${new Date().toISOString().split('T')[0]}.csv`;
+        const sufixoGrupo = agrupamentoAtual !== 'nenhum' ? `_por_${agrupamentoAtual}` : '';
+        link.download = `relatorio_requisicoes${sufixoGrupo}_${new Date().toISOString().split('T')[0]}.csv`;
         link.click();
     }
 
@@ -408,12 +459,52 @@
             : 'Todos os registros';
         doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(70, 70, 70);
         doc.text(`Filtros: ${resumoFiltros}`, margemEsq, 103, { maxWidth: pageWidth - 80 });
-        doc.text(`Requisições: ${kpiTotal.innerText}  |  Itens: ${kpiItens.innerText}  |  Qtd. Enviada: ${kpiQtd.innerText}  |  Divergências: ${kpiDiv.innerText}`, margemEsq, 116);
+        doc.text(`Agrupamento: ${obterLabelAgrupamento()}  |  Requisições: ${kpiTotal.innerText}  |  Itens: ${kpiItens.innerText}  |  Qtd. Enviada: ${kpiQtd.innerText}  |  Divergências: ${kpiDiv.innerText}`, margemEsq, 116);
 
-        const body = linhasFiltradas.map(l => [
+        const linhasOrdenadas = obterLinhasOrdenadas();
+        const montarLinhaTabela = (l) => [
             l.codigo, l.dataBr, l.solicitante, l.origem, l.destino, l.produto,
             l.qtdSolic, l.qtdEnv ?? '-', l.qtdRec ?? '-', l.temDivergencia ? (l.dif > 0 ? `+${l.dif}` : l.dif) : '-', l.status
-        ]);
+        ];
+
+        let body = [];
+
+        if (agrupamentoAtual === 'nenhum') {
+            body = linhasOrdenadas.map(montarLinhaTabela);
+        } else {
+            const campoGrupo = agrupamentoAtual === 'requisitante' ? 'destino' : 'produto';
+            const rotuloGrupo = agrupamentoAtual === 'requisitante' ? 'REQUISITANTE' : 'PRODUTO';
+            const gruposMap = new Map();
+
+            linhasOrdenadas.forEach(l => {
+                const chave = l[campoGrupo] || '-';
+                if (!gruposMap.has(chave)) gruposMap.set(chave, []);
+                gruposMap.get(chave).push(l);
+            });
+
+            const chavesOrdenadas = Array.from(gruposMap.keys()).sort(cmpAlfa);
+
+            chavesOrdenadas.forEach(chave => {
+                const itensGrupo = gruposMap.get(chave);
+                const somaSolic = itensGrupo.reduce((acc, i) => acc + (Number(i.qtdSolic) || 0), 0);
+                const somaEnv = itensGrupo.reduce((acc, i) => acc + (Number(i.qtdEnv) || 0), 0);
+                const somaRec = itensGrupo.reduce((acc, i) => acc + (Number(i.qtdRec) || 0), 0);
+
+                body.push([{
+                    content: `${rotuloGrupo}: ${chave}   (${itensGrupo.length} ${itensGrupo.length === 1 ? 'item' : 'itens'}  |  Solic.: ${somaSolic}  |  Env.: ${somaEnv}  |  Rec.: ${somaRec})`,
+                    colSpan: 11,
+                    styles: {
+                        fillColor: [241, 245, 249],
+                        textColor: [0, 43, 91],
+                        fontStyle: 'bold',
+                        fontSize: 7.5,
+                        cellPadding: 5
+                    }
+                }]);
+
+                itensGrupo.forEach(l => body.push(montarLinhaTabela(l)));
+            });
+        }
 
         const horaAtual = new Date().toLocaleString('pt-BR');
 

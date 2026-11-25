@@ -21,6 +21,7 @@
     const btnAplicarFiltro = moduloContent.querySelector('#btn-aplicar-filtro');
     const btnLimparFiltros = moduloContent.querySelector('#btn-limpar-filtros');
     const btnRefresh = moduloContent.querySelector('#btn-refresh-rel');
+    const btnsAgrupamento = moduloContent.querySelectorAll('.btn-agrupamento-rel-emp');
 
     // Tags e Contadores
     const lblTotalEmps = moduloContent.querySelector('#lbl-total-emps');
@@ -53,6 +54,7 @@
     let dadosCompletos = [];
     let dadosFiltrados = [];
     let filtrosAtivos = [];
+    let agrupamentoAtual = 'nenhum'; // 'nenhum' | 'responsavel' | 'equipamento' | 'origem'
 
     const fmtCod = (cod) => {
         if (typeof window.fmtCod === 'function') return window.fmtCod(cod);
@@ -60,6 +62,77 @@
         const str = String(cod).trim();
         return /^\d+$/.test(str) ? str.padStart(6, '0') : str;
     };
+
+    const extrairNomeOrdenacao = (texto) => {
+        const s = String(texto || '').trim();
+        const idx = s.indexOf(' - ');
+        return idx !== -1 ? s.slice(idx + 3).trim() : s;
+    };
+
+    const cmpAlfa = (a, b) => extrairNomeOrdenacao(a).localeCompare(extrairNomeOrdenacao(b), 'pt-BR', { sensitivity: 'base', numeric: true });
+
+    function obterLabelAgrupamento() {
+        if (agrupamentoAtual === 'responsavel') return 'Por Responsável (A–Z)';
+        if (agrupamentoAtual === 'equipamento') return 'Por Equipamento (A–Z)';
+        if (agrupamentoAtual === 'origem') return 'Por Origem (A–Z)';
+        return 'Sem Agrupamento';
+    }
+
+    function obterDadosOrdenados() {
+        const lista = [...dadosFiltrados];
+        if (agrupamentoAtual === 'responsavel') {
+            lista.sort((a, b) =>
+                cmpAlfa(a.responsavel, b.responsavel) ||
+                cmpAlfa(a.origemNome, b.origemNome) ||
+                String(b.codigoFormatado).localeCompare(String(a.codigoFormatado))
+            );
+        } else if (agrupamentoAtual === 'origem') {
+            lista.sort((a, b) =>
+                cmpAlfa(a.origemNome, b.origemNome) ||
+                cmpAlfa(a.responsavel, b.responsavel) ||
+                String(b.codigoFormatado).localeCompare(String(a.codigoFormatado))
+            );
+        }
+        return lista;
+    }
+
+    function obterLinhasPorEquipamento() {
+        const linhas = [];
+        dadosFiltrados.forEach(r => {
+            const itens = (r.itensDetalhados && r.itensDetalhados.length > 0)
+                ? r.itensDetalhados
+                : [{ equipamento: 'Sem equipamento', qtd: 0, statusItem: r.statusCalculado }];
+
+            itens.forEach(it => {
+                linhas.push({
+                    ...r,
+                    equipamentoItem: it.equipamento,
+                    qtdItem: it.qtd,
+                    statusItem: it.statusItem
+                });
+            });
+        });
+
+        linhas.sort((a, b) =>
+            cmpAlfa(a.equipamentoItem, b.equipamentoItem) ||
+            cmpAlfa(a.responsavel, b.responsavel) ||
+            String(b.codigoFormatado).localeCompare(String(a.codigoFormatado))
+        );
+        return linhas;
+    }
+
+    btnsAgrupamento.forEach(btn => {
+        btn.addEventListener('click', () => {
+            agrupamentoAtual = btn.dataset.grupo || 'nenhum';
+            btnsAgrupamento.forEach(b => {
+                const ativo = b === btn;
+                b.classList.toggle('active', ativo);
+                b.style.background = ativo ? 'var(--cnx-blue)' : '#f8fafc';
+                b.style.color = ativo ? 'white' : '#475569';
+                b.style.borderColor = ativo ? 'var(--cnx-blue)' : '#cbd5e1';
+            });
+        });
+    });
 
     // ================= PERMISSÕES E CARGA INICIAL =================
     async function carregarPermissoes() {
@@ -126,7 +199,7 @@
                     *,
                     usuarios(nome_completo),
                     almoxarifado:almoxarifados(id, codigo, descricao),
-                    itens:emprestimo_itens(qtd_emprestada, status, produtos(codigo, descricao))
+                    itens:emprestimo_itens(qtd_emprestada, status, produto_snapshot, produtos(codigo, descricao))
                 `)
                 .order('codigo', { ascending: false });
 
@@ -154,18 +227,27 @@
                 }
 
                 const itensArr = r.itens || [];
-                const listaItens = itensArr.map(i => {
-                    const desc = i.produtos ? `${fmtCod(i.produtos.codigo)} - ${i.produtos.descricao}` : 'Equipamento Excluído';
-                    const st = i.status === 'DEVOLVIDO' ? ' [DEV]' : '';
-                    return `${i.qtd_emprestada}x ${desc}${st}`;
+                const itensDetalhados = itensArr.map(i => {
+                    const desc = i.produto_snapshot || (i.produtos ? `${fmtCod(i.produtos.codigo)} - ${i.produtos.descricao}` : 'Equipamento Excluído');
+                    return {
+                        equipamento: desc,
+                        qtd: Number(i.qtd_emprestada) || 0,
+                        statusItem: i.status || 'PENDENTE'
+                    };
+                });
+
+                const listaItens = itensDetalhados.map(it => {
+                    const st = it.statusItem === 'DEVOLVIDO' ? ' [DEV]' : '';
+                    return `${it.qtd}x ${it.equipamento}${st}`;
                 });
 
                 return {
                     ...r,
                     codigoFormatado: String(r.codigo).padStart(6, '0'),
-                    origemNome: r.almoxarifado ? `${fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : 'Desconhecido',
+                    origemNome: r.almoxarifado_snapshot || (r.almoxarifado ? `${fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : 'Desconhecido'),
                     criadorNome: r.usuarios ? r.usuarios.nome_completo : 'Sistema',
                     qtdItensLinhas: itensArr.length,
+                    itensDetalhados,
                     itensTexto: listaItens.join('; '),
                     statusCalculado: statusCalc
                 };
@@ -450,10 +532,10 @@
                 : 'Nenhum filtro aplicado';
 
             doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(70, 70, 70);
-            doc.text(`Filtros: ${resumoFiltros}   |   Total: ${dadosFiltrados.length} empréstimo(s)`, margemEsq, 82);
+            doc.text(`Filtros: ${resumoFiltros}`, margemEsq, 80, { maxWidth: pageWidth - 70 });
+            doc.text(`Agrupamento: ${obterLabelAgrupamento()}   |   Empréstimos: ${dadosFiltrados.length}   |   Equipamentos: ${kpiItens?.innerText || 0}`, margemEsq, 93);
 
-            const colunas = [["Código", "Origem", "Responsável", "Saída", "Prev. Dev.", "Devolução", "Equipamentos", "Status"]];
-            const linhas = dadosFiltrados.map(r => [
+            const montarLinhaPadrao = (r) => [
                 r.codigoFormatado,
                 r.origemNome,
                 r.responsavel || '-',
@@ -462,25 +544,103 @@
                 formatarDataBR(r.data_devolucao),
                 r.itensTexto || '-',
                 r.statusCalculado === 'DEVOLUCAO PARCIAL' ? 'DEV. PARCIAL' : r.statusCalculado
-            ]);
+            ];
+
+            let colunas = [["Código", "Origem", "Responsável", "Saída", "Prev. Dev.", "Devolução", "Equipamentos", "Status"]];
+            let columnStyles = {
+                0: { cellWidth: 50, halign: 'center' },
+                1: { cellWidth: 120 },
+                2: { cellWidth: 110 },
+                3: { cellWidth: 58, halign: 'center' },
+                4: { cellWidth: 58, halign: 'center' },
+                5: { cellWidth: 58, halign: 'center' },
+                6: { cellWidth: 'auto' },
+                7: { cellWidth: 68, halign: 'center', fontStyle: 'bold' }
+            };
+            let linhas = [];
+
+            if (agrupamentoAtual === 'nenhum') {
+                linhas = dadosFiltrados.map(montarLinhaPadrao);
+            } else if (agrupamentoAtual === 'equipamento') {
+                colunas = [["Código", "Origem", "Responsável", "Saída", "Prev. Dev.", "Devolução", "Qtd", "Status Item"]];
+                columnStyles = {
+                    0: { cellWidth: 54, halign: 'center' },
+                    1: { cellWidth: 150 },
+                    2: { cellWidth: 'auto' },
+                    3: { cellWidth: 62, halign: 'center' },
+                    4: { cellWidth: 62, halign: 'center' },
+                    5: { cellWidth: 62, halign: 'center' },
+                    6: { cellWidth: 42, halign: 'center', fontStyle: 'bold' },
+                    7: { cellWidth: 74, halign: 'center', fontStyle: 'bold' }
+                };
+
+                const itensOrdenados = obterLinhasPorEquipamento();
+                const gruposMap = new Map();
+                itensOrdenados.forEach(item => {
+                    const chave = item.equipamentoItem || '-';
+                    if (!gruposMap.has(chave)) gruposMap.set(chave, []);
+                    gruposMap.get(chave).push(item);
+                });
+
+                const chavesOrdenadas = Array.from(gruposMap.keys()).sort(cmpAlfa);
+                chavesOrdenadas.forEach(chave => {
+                    const itensGrupo = gruposMap.get(chave);
+                    const somaQtd = itensGrupo.reduce((acc, i) => acc + (Number(i.qtdItem) || 0), 0);
+
+                    linhas.push([{
+                        content: `EQUIPAMENTO: ${chave}   (${itensGrupo.length} ${itensGrupo.length === 1 ? 'registro' : 'registros'}  |  Qtd. Total: ${somaQtd})`,
+                        colSpan: 8,
+                        styles: { fillColor: [241, 245, 249], textColor: [0, 43, 91], fontStyle: 'bold', fontSize: 7.5, cellPadding: 5 }
+                    }]);
+
+                    itensGrupo.forEach(it => {
+                        linhas.push([
+                            it.codigoFormatado,
+                            it.origemNome,
+                            it.responsavel || '-',
+                            formatarDataBR(it.data_emprestimo),
+                            formatarDataBR(it.previsao_devolucao),
+                            formatarDataBR(it.data_devolucao),
+                            it.qtdItem,
+                            it.statusItem
+                        ]);
+                    });
+                });
+            } else {
+                const campoGrupo = agrupamentoAtual === 'responsavel' ? 'responsavel' : 'origemNome';
+                const rotuloGrupo = agrupamentoAtual === 'responsavel' ? 'RESPONSÁVEL' : 'ORIGEM';
+                const ordenados = obterDadosOrdenados();
+                const gruposMap = new Map();
+
+                ordenados.forEach(r => {
+                    const chave = r[campoGrupo] || '-';
+                    if (!gruposMap.has(chave)) gruposMap.set(chave, []);
+                    gruposMap.get(chave).push(r);
+                });
+
+                const chavesOrdenadas = Array.from(gruposMap.keys()).sort(cmpAlfa);
+                chavesOrdenadas.forEach(chave => {
+                    const empsGrupo = gruposMap.get(chave);
+                    const somaItens = empsGrupo.reduce((acc, r) => acc + (r.qtdItensLinhas || 0), 0);
+
+                    linhas.push([{
+                        content: `${rotuloGrupo}: ${chave}   (${empsGrupo.length} ${empsGrupo.length === 1 ? 'empréstimo' : 'empréstimos'}  |  ${somaItens} ${somaItens === 1 ? 'equipamento' : 'equipamentos'})`,
+                        colSpan: 8,
+                        styles: { fillColor: [241, 245, 249], textColor: [0, 43, 91], fontStyle: 'bold', fontSize: 7.5, cellPadding: 5 }
+                    }]);
+
+                    empsGrupo.forEach(r => linhas.push(montarLinhaPadrao(r)));
+                });
+            }
 
             doc.autoTable({
-                startY: 92,
+                startY: 102,
                 head: colunas,
                 body: linhas,
                 theme: 'grid',
                 styles: { fontSize: 7.5, cellPadding: 4, valign: 'middle' },
                 headStyles: { fillColor: [0, 43, 91], textColor: [255, 255, 255], fontStyle: 'bold' },
-                columnStyles: {
-                    0: { cellWidth: 50, halign: 'center' },
-                    1: { cellWidth: 120 },
-                    2: { cellWidth: 110 },
-                    3: { cellWidth: 58, halign: 'center' },
-                    4: { cellWidth: 58, halign: 'center' },
-                    5: { cellWidth: 58, halign: 'center' },
-                    6: { cellWidth: 'auto' },
-                    7: { cellWidth: 68, halign: 'center', fontStyle: 'bold' }
-                },
+                columnStyles,
                 margin: { left: margemEsq, right: 35, bottom: 35 },
                 didDrawPage: () => {
                     const horaAtual = new Date().toLocaleString('pt-BR');
@@ -510,22 +670,42 @@
         }
 
         modalExport.style.display = 'none';
-
-        const cabecalho = ['Código', 'Origem', 'Responsável', 'Data Saída', 'Previsão Devolução', 'Data Devolução', 'Equipamentos', 'Status', 'Criado Por', 'Observações'];
         const escapar = (val) => `"${String(val || '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 
-        const linhas = dadosFiltrados.map(r => [
-            r.codigoFormatado,
-            r.origemNome,
-            r.responsavel || '',
-            formatarDataBR(r.data_emprestimo),
-            formatarDataBR(r.previsao_devolucao),
-            formatarDataBR(r.data_devolucao),
-            r.itensTexto || '',
-            r.statusCalculado,
-            r.criadorNome,
-            r.observacoes || ''
-        ].map(escapar).join(';'));
+        let cabecalho = [];
+        let linhas = [];
+
+        if (agrupamentoAtual === 'equipamento') {
+            cabecalho = ['Equipamento', 'Qtd', 'Status Item', 'Código', 'Origem', 'Responsável', 'Data Saída', 'Previsão Devolução', 'Data Devolução', 'Status Empréstimo', 'Criado Por', 'Observações'];
+            linhas = obterLinhasPorEquipamento().map(it => [
+                it.equipamentoItem,
+                it.qtdItem,
+                it.statusItem,
+                it.codigoFormatado,
+                it.origemNome,
+                it.responsavel || '',
+                formatarDataBR(it.data_emprestimo),
+                formatarDataBR(it.previsao_devolucao),
+                formatarDataBR(it.data_devolucao),
+                it.statusCalculado,
+                it.criadorNome,
+                it.observacoes || ''
+            ].map(escapar).join(';'));
+        } else {
+            cabecalho = ['Código', 'Origem', 'Responsável', 'Data Saída', 'Previsão Devolução', 'Data Devolução', 'Equipamentos', 'Status', 'Criado Por', 'Observações'];
+            linhas = obterDadosOrdenados().map(r => [
+                r.codigoFormatado,
+                r.origemNome,
+                r.responsavel || '',
+                formatarDataBR(r.data_emprestimo),
+                formatarDataBR(r.previsao_devolucao),
+                formatarDataBR(r.data_devolucao),
+                r.itensTexto || '',
+                r.statusCalculado,
+                r.criadorNome,
+                r.observacoes || ''
+            ].map(escapar).join(';'));
+        }
 
         const csvContent = '\uFEFF' + [cabecalho.join(';'), ...linhas].join('\r\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -533,7 +713,8 @@
 
         const link = document.createElement('a');
         link.href = url;
-        link.download = `relatorio_emprestimos_${new Date().toISOString().split('T')[0]}.csv`;
+        const sufixoGrupo = agrupamentoAtual !== 'nenhum' ? `_por_${agrupamentoAtual}` : '';
+        link.download = `relatorio_emprestimos${sufixoGrupo}_${new Date().toISOString().split('T')[0]}.csv`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

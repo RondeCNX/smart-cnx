@@ -21,6 +21,7 @@
     const btnAplicarFiltro = moduloContent.querySelector('#btn-aplicar-filtro');
     const btnLimparFiltros = moduloContent.querySelector('#btn-limpar-filtros');
     const btnRefresh = moduloContent.querySelector('#btn-refresh-rel');
+    const btnsAgrupamento = moduloContent.querySelectorAll('.btn-agrupamento-rel-mac');
 
     // Tags e Contadores
     const lblTotalAjustes = moduloContent.querySelector('#lbl-total-ajustes');
@@ -54,6 +55,7 @@
     let dadosCompletos = [];
     let dadosFiltrados = [];
     let filtrosAtivos = [];
+    let agrupamentoAtual = 'nenhum'; // 'nenhum' | 'destino' | 'origem' | 'equipamento'
 
     const fmtCod = (cod) => {
         if (typeof window.fmtCod === 'function') return window.fmtCod(cod);
@@ -61,6 +63,34 @@
         const str = String(cod).trim();
         return /^\d+$/.test(str) ? str.padStart(6, '0') : str;
     };
+
+    const extrairNomeOrdenacao = (texto) => {
+        const s = String(texto || '').trim();
+        const idx = s.indexOf(' - ');
+        return idx !== -1 ? s.slice(idx + 3).trim() : s;
+    };
+
+    const cmpAlfa = (a, b) => extrairNomeOrdenacao(a).localeCompare(extrairNomeOrdenacao(b), 'pt-BR', { sensitivity: 'base', numeric: true });
+
+    function obterLabelAgrupamento() {
+        if (agrupamentoAtual === 'destino') return 'Por Destino (A–Z)';
+        if (agrupamentoAtual === 'origem') return 'Por Origem (A–Z)';
+        if (agrupamentoAtual === 'equipamento') return 'Por Equipamento (A–Z)';
+        return 'Sem Agrupamento';
+    }
+
+    btnsAgrupamento.forEach(btn => {
+        btn.addEventListener('click', () => {
+            agrupamentoAtual = btn.dataset.grupo || 'nenhum';
+            btnsAgrupamento.forEach(b => {
+                const ativo = b === btn;
+                b.classList.toggle('active', ativo);
+                b.style.background = ativo ? 'var(--cnx-blue)' : '#f8fafc';
+                b.style.color = ativo ? 'white' : '#475569';
+                b.style.borderColor = ativo ? 'var(--cnx-blue)' : '#cbd5e1';
+            });
+        });
+    });
 
     // ================= PERMISSÕES E CARGA INICIAL =================
     async function carregarPermissoes() {
@@ -129,6 +159,7 @@
                     almoxarifado:almoxarifados(id, codigo, descricao),
                     coletas:coletas_mac(
                         id, mac, numero_serie, produto_patrimonio_erp, status,
+                        produto_snapshot, almoxarifado_origem_snapshot, almoxarifado_destino_snapshot,
                         produtos(codigo, descricao),
                         almoxarifado_origem:almoxarifados!almoxarifado_id(codigo, descricao),
                         almoxarifado_destino:almoxarifados!almoxarifado_destino_id(codigo, descricao)
@@ -156,7 +187,7 @@
                     ...r,
                     dataRef,
                     codigoFormatado: r.codigo ? String(r.codigo).padStart(6, '0') : String(r.id || '').slice(0, 8).toUpperCase(),
-                    almoxNome: r.almoxarifado ? `${fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : 'Desconhecido',
+                    almoxNome: r.almoxarifado_snapshot || (r.almoxarifado ? `${fmtCod(r.almoxarifado.codigo)} - ${r.almoxarifado.descricao}` : 'Desconhecido'),
                     criadorNome: r.usuarios ? r.usuarios.nome_completo : 'Sistema',
                     statusUpper: String(r.status || 'PENDENTE').toUpperCase(),
                     coletasLista: coletasArr,
@@ -390,7 +421,7 @@
         if (kpiPendentes) kpiPendentes.innerText = totalPendentes;
     }
 
-    // Expande cada ajuste em linhas por MAC coletado (ou 1 linha se não houver MAC vinculado)
+    // Expande cada ajuste em linhas por MAC coletado (ou 1 linha se não houver MAC vinculado) e ordena conforme agrupamento
     function montarLinhasExportacao() {
         const linhas = [];
         dadosFiltrados.forEach(r => {
@@ -410,19 +441,22 @@
                 });
             } else {
                 r.coletasLista.forEach(c => {
-                    const orig = c.almoxarifado_origem
+                    const orig = c.almoxarifado_origem_snapshot || (c.almoxarifado_origem
                         ? `${fmtCod(c.almoxarifado_origem.codigo)} - ${c.almoxarifado_origem.descricao}`
-                        : r.almoxNome;
-                    const dest = c.almoxarifado_destino
+                        : r.almoxNome);
+                    const dest = c.almoxarifado_destino_snapshot || (c.almoxarifado_destino
                         ? `${fmtCod(c.almoxarifado_destino.codigo)} - ${c.almoxarifado_destino.descricao}`
-                        : r.almoxNome;
+                        : r.almoxNome);
+                    const prod = c.produto_snapshot || (c.produtos
+                        ? `${fmtCod(c.produtos.codigo)} - ${c.produtos.descricao}`
+                        : '-');
 
                     linhas.push({
                         codigo: r.codigoFormatado,
                         data: formatarDataBR(r.dataRef),
                         almoxOrigem: orig,
                         almoxDestino: dest,
-                        produto: c.produtos ? `${fmtCod(c.produtos.codigo)} - ${c.produtos.descricao}` : '-',
+                        produto: prod,
                         mac: c.mac || '-',
                         serie: c.numero_serie || '-',
                         patrimonio: c.produto_patrimonio_erp || '-',
@@ -433,6 +467,27 @@
                 });
             }
         });
+
+        if (agrupamentoAtual === 'destino') {
+            linhas.sort((a, b) =>
+                cmpAlfa(a.almoxDestino, b.almoxDestino) ||
+                cmpAlfa(a.produto, b.produto) ||
+                String(a.mac).localeCompare(String(b.mac))
+            );
+        } else if (agrupamentoAtual === 'origem') {
+            linhas.sort((a, b) =>
+                cmpAlfa(a.almoxOrigem, b.almoxOrigem) ||
+                cmpAlfa(a.produto, b.produto) ||
+                String(a.mac).localeCompare(String(b.mac))
+            );
+        } else if (agrupamentoAtual === 'equipamento') {
+            linhas.sort((a, b) =>
+                cmpAlfa(a.produto, b.produto) ||
+                cmpAlfa(a.almoxDestino, b.almoxDestino) ||
+                String(a.mac).localeCompare(String(b.mac))
+            );
+        }
+
         return linhas;
     }
 
@@ -499,10 +554,10 @@
 
             const linhasExport = montarLinhasExportacao();
             doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(70, 70, 70);
-            doc.text(`Filtros: ${resumoFiltros}   |   Ajustes: ${dadosFiltrados.length}   |   MACs: ${linhasExport.length}`, margemEsq, 82);
+            doc.text(`Filtros: ${resumoFiltros}`, margemEsq, 80, { maxWidth: pageWidth - 70 });
+            doc.text(`Agrupamento: ${obterLabelAgrupamento()}   |   Ajustes: ${dadosFiltrados.length}   |   MACs: ${linhasExport.length}`, margemEsq, 93);
 
-            const colunas = [["Ajuste", "Data", "Origem", "Destino", "Equipamento", "MAC (GPON)", "Nº Série", "Patrimônio ERP", "Status"]];
-            const linhas = linhasExport.map(l => [
+            const montarLinhaTabela = (l) => [
                 l.codigo,
                 l.data,
                 l.almoxOrigem,
@@ -512,10 +567,49 @@
                 l.serie,
                 l.patrimonio,
                 l.status
-            ]);
+            ];
+
+            const colunas = [["Ajuste", "Data", "Origem", "Destino", "Equipamento", "MAC (GPON)", "Nº Série", "Patrimônio ERP", "Status"]];
+            let linhas = [];
+
+            if (agrupamentoAtual === 'nenhum') {
+                linhas = linhasExport.map(montarLinhaTabela);
+            } else {
+                const mapaCampo = {
+                    destino: { campo: 'almoxDestino', rotulo: 'DESTINO' },
+                    origem: { campo: 'almoxOrigem', rotulo: 'ORIGEM' },
+                    equipamento: { campo: 'produto', rotulo: 'EQUIPAMENTO' }
+                };
+                const { campo, rotulo } = mapaCampo[agrupamentoAtual];
+                const gruposMap = new Map();
+
+                linhasExport.forEach(l => {
+                    const chave = l[campo] || '-';
+                    if (!gruposMap.has(chave)) gruposMap.set(chave, []);
+                    gruposMap.get(chave).push(l);
+                });
+
+                const chavesOrdenadas = Array.from(gruposMap.keys()).sort(cmpAlfa);
+                chavesOrdenadas.forEach(chave => {
+                    const itensGrupo = gruposMap.get(chave);
+                    linhas.push([{
+                        content: `${rotulo}: ${chave}   (${itensGrupo.length} ${itensGrupo.length === 1 ? 'MAC' : 'MACs'})`,
+                        colSpan: 9,
+                        styles: {
+                            fillColor: [241, 245, 249],
+                            textColor: [0, 43, 91],
+                            fontStyle: 'bold',
+                            fontSize: 7.5,
+                            cellPadding: 5
+                        }
+                    }]);
+
+                    itensGrupo.forEach(l => linhas.push(montarLinhaTabela(l)));
+                });
+            }
 
             doc.autoTable({
-                startY: 92,
+                startY: 102,
                 head: colunas,
                 body: linhas,
                 theme: 'grid',
@@ -586,7 +680,8 @@
 
         const link = document.createElement('a');
         link.href = url;
-        link.download = `relatorio_ajustes_mac_${new Date().toISOString().split('T')[0]}.csv`;
+        const sufixoGrupo = agrupamentoAtual !== 'nenhum' ? `_por_${agrupamentoAtual}` : '';
+        link.download = `relatorio_ajustes_mac${sufixoGrupo}_${new Date().toISOString().split('T')[0]}.csv`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
