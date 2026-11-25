@@ -32,6 +32,7 @@
     const tabContents = moduloContent.querySelectorAll('.tab-form-content');
 
     const inAlmoxId = moduloContent.querySelector('#ajuste-almox-id');
+    const inAlmoxOrigemId = moduloContent.querySelector('#ajuste-almox-origem-id');
     const inAlmoxDesc = moduloContent.querySelector('#ajuste-almox-desc');
     const blocoAlmoxPendentes = moduloContent.querySelector('#bloco-almox-pendentes');
     const blocoAlmoxReadonly = moduloContent.querySelector('#bloco-almox-readonly');
@@ -44,8 +45,11 @@
 
     // Itens (Aba 2)
     const tbodyMacs = moduloContent.querySelector('#tbody-itens-pendentes');
-    const chkAllMacs = moduloContent.querySelector('#chk-all-macs');
+    const chkAllEntrada = moduloContent.querySelector('#chk-all-entrada');
+    const chkAllSaida = moduloContent.querySelector('#chk-all-saida');
     const lblTotalMacsSel = moduloContent.querySelector('#lbl-total-macs-sel');
+    const lblTotalMacsEnt = moduloContent.querySelector('#lbl-total-macs-ent');
+    const lblTotalMacsSai = moduloContent.querySelector('#lbl-total-macs-sai');
 
     let usuarioLogadoId = null;
     let isAdmin = false;
@@ -72,8 +76,10 @@
     });
 
     async function verificarAutoAbrirNovoAjuste() {
-        const almoxId = window.ajusteEstoqueAutoAbrirAlmoxId;
-        if (!almoxId) return;
+        const autoConfig = window.ajusteEstoqueAutoAbrir || (window.ajusteEstoqueAutoAbrirAlmoxId ? { destinoId: window.ajusteEstoqueAutoAbrirAlmoxId, abrirAbaMacs: true } : null);
+        if (!autoConfig) return;
+
+        window.ajusteEstoqueAutoAbrir = null;
         window.ajusteEstoqueAutoAbrirAlmoxId = null;
 
         if (!permissoesAcesso.create) {
@@ -81,7 +87,7 @@
             return;
         }
 
-        await abrirFormulario('novo', null, almoxId);
+        await abrirFormulario('novo', null, autoConfig);
     }
 
     document.addEventListener('telaRestaurada', (e) => {
@@ -343,6 +349,51 @@
         lucide.createIcons();
     }
 
+    // ================= CONTROLE DE LINHAS (ENTRADA / SAÍDA) =================
+    function atualizarEstadoLinhaMac(tr, focarErp = false) {
+        const chkEnt = tr.querySelector('.chk-mac-entrada');
+        const chkSai = tr.querySelector('.chk-mac-saida');
+        const inErp = tr.querySelector('.in-erp-id');
+        if (!chkEnt || !chkSai || !inErp) return;
+
+        const entMarcada = chkEnt.checked;
+        const saiMarcada = chkSai.checked;
+        const algumMarcado = entMarcada || saiMarcada;
+
+        inErp.disabled = !algumMarcado;
+        if (!algumMarcado) {
+            if (modoForm === 'novo') inErp.value = '';
+            tr.style.background = 'transparent';
+        } else if (entMarcada && saiMarcada) {
+            tr.style.background = '#f0fdf4'; // Verde claro: entrada e saída conferidas
+        } else {
+            tr.style.background = '#fffbeb'; // Amarelo bem leve: apenas uma conferida
+        }
+
+        if (focarErp && algumMarcado && modoForm === 'novo' && !inErp.value.trim()) {
+            inErp.focus();
+        }
+    }
+
+    function obterLinhasSelecionadas() {
+        return Array.from(tbodyMacs.querySelectorAll('tr[data-coleta-id]')).filter(tr => {
+            const ent = tr.querySelector('.chk-mac-entrada')?.checked;
+            const sai = tr.querySelector('.chk-mac-saida')?.checked;
+            return ent || sai;
+        });
+    }
+
+    function atualizarContadorSelecao() {
+        const entCount = tbodyMacs.querySelectorAll('.chk-mac-entrada:checked').length;
+        const saiCount = tbodyMacs.querySelectorAll('.chk-mac-saida:checked').length;
+        const selCount = obterLinhasSelecionadas().length;
+
+        if (lblTotalMacsEnt) lblTotalMacsEnt.innerText = entCount;
+        if (lblTotalMacsSai) lblTotalMacsSai.innerText = saiCount;
+        if (lblTotalMacsSel) lblTotalMacsSel.innerText = selCount;
+        formFoiAlterado = true;
+    }
+
     // ================= EVENTOS GLOBAIS DA TELA =================
     if (window.configurarOrdenacaoTabela) { window.configurarOrdenacaoTabela(moduloContent, sortConfig, aplicarFiltrosEOrdenar); }
 
@@ -374,32 +425,23 @@
 
         const cardAlmox = e.target.closest('.card-almox-pendente');
         if (cardAlmox && modoForm === 'novo') {
-            selecionarAlmoxarifadoPendente(cardAlmox.dataset.almoxId);
+            selecionarAlmoxarifadoPendente(cardAlmox.dataset.origemId, cardAlmox.dataset.destinoId, cardAlmox.dataset.pairKey);
             return;
         }
         
-        const chkItem = e.target.closest('.chk-mac-item');
+        const chkItem = e.target.closest('.chk-mac-entrada, .chk-mac-saida');
         if (chkItem) {
             const tr = chkItem.closest('tr');
-            const inErp = tr.querySelector('.in-erp-id');
-            if (chkItem.checked) {
-                inErp.disabled = false;
-                if (modoForm === 'novo') inErp.focus();
-                tr.style.background = '#f0fdf4';
-            } else {
-                inErp.disabled = true;
-                if (modoForm === 'novo') inErp.value = '';
-                tr.style.background = 'transparent';
-            }
+            atualizarEstadoLinhaMac(tr, chkItem.checked);
             atualizarContadorSelecao();
         }
     });
 
-    // Dois cliques no almoxarifado já seleciona e abre a Aba 2 com os MACs pendentes
+    // Dois cliques no card já seleciona e abre a Aba 2 com os MACs pendentes
     moduloContent.addEventListener('dblclick', (e) => {
         const cardAlmox = e.target.closest('.card-almox-pendente');
         if (cardAlmox && modoForm === 'novo') {
-            selecionarAlmoxarifadoPendente(cardAlmox.dataset.almoxId);
+            selecionarAlmoxarifadoPendente(cardAlmox.dataset.origemId, cardAlmox.dataset.destinoId, cardAlmox.dataset.pairKey);
             tabBtns[1].click();
         }
     });
@@ -408,28 +450,23 @@
         if (e.target.closest('#modal-ajuste') && !e.target.classList.contains('filter-input')) formFoiAlterado = true;
     });
 
-    chkAllMacs.addEventListener('change', () => {
-        const isChecked = chkAllMacs.checked;
-        moduloContent.querySelectorAll('.chk-mac-item').forEach(chk => {
+    chkAllEntrada.addEventListener('change', () => {
+        const isChecked = chkAllEntrada.checked;
+        tbodyMacs.querySelectorAll('.chk-mac-entrada').forEach(chk => {
             chk.checked = isChecked;
-            const tr = chk.closest('tr');
-            const inErp = tr.querySelector('.in-erp-id');
-            inErp.disabled = !isChecked;
-            if (!isChecked) { 
-                if (modoForm === 'novo') inErp.value = ''; 
-                tr.style.background = 'transparent'; 
-            } else { 
-                tr.style.background = '#f0fdf4'; 
-            }
+            atualizarEstadoLinhaMac(chk.closest('tr'), false);
         });
         atualizarContadorSelecao();
     });
 
-    function atualizarContadorSelecao() {
-        const val = moduloContent.querySelectorAll('.chk-mac-item:checked').length;
-        lblTotalMacsSel.innerText = val;
-        formFoiAlterado = true;
-    }
+    chkAllSaida.addEventListener('change', () => {
+        const isChecked = chkAllSaida.checked;
+        tbodyMacs.querySelectorAll('.chk-mac-saida').forEach(chk => {
+            chk.checked = isChecked;
+            atualizarEstadoLinhaMac(chk.closest('tr'), false);
+        });
+        atualizarContadorSelecao();
+    });
 
     // ================= NAVEGAÇÃO DE ABAS =================
     tabBtns.forEach(btn => {
@@ -444,8 +481,8 @@
         });
     });
 
-    // ================= LISTA AUTOMÁTICA DE ALMOXARIFADOS COM PENDÊNCIAS (DESTINO) =================
-    async function carregarAlmoxarifadosComPendencias(almoxPreSelecionadoId = null) {
+    // ================= LISTA AUTOMÁTICA DE ALMOXARIFADOS COM PENDÊNCIAS (ORIGEM + DESTINO) =================
+    async function carregarAlmoxarifadosComPendencias(autoConfig = null) {
         listaAlmoxPendentesEl.innerHTML = `<div style="grid-column: 1 / -1; text-align:center; padding: 1rem; color:#64748b;"><i data-lucide="loader-2" class="lucide-spin" style="width:18px;"></i> Buscando almoxarifados com MACs pendentes...</div>`;
         lucide.createIcons();
 
@@ -475,62 +512,99 @@
             return;
         }
 
+        // Agrupa somente MACs com o mesmo Almoxarifado de Coleta (Origem) E mesmo Almoxarifado de Destino
         const mapa = {};
         (data || []).forEach(m => {
-            const almoxRef = m.almoxarifado_destino || m.almoxarifado_origem;
-            const idRef = m.almoxarifado_destino_id || m.almoxarifado_id;
-            if (!idRef) return;
+            const origemId = String(m.almoxarifado_id || '');
+            const destinoId = String(m.almoxarifado_destino_id || m.almoxarifado_id || '');
+            if (!destinoId) return;
 
-            if (!mapa[idRef]) {
-                const desc = almoxRef
-                    ? `${window.fmtCod(almoxRef.codigo)} - ${almoxRef.descricao}`
-                    : 'Almoxarifado não identificado';
-                mapa[idRef] = { id: idRef, descricao: desc, qtd: 0 };
+            const chave = `${origemId}|${destinoId}`;
+            if (!mapa[chave]) {
+                const origObj = m.almoxarifado_origem;
+                const destObj = m.almoxarifado_destino || m.almoxarifado_origem;
+                const descOrigem = origObj
+                    ? `${window.fmtCod(origObj.codigo)} - ${origObj.descricao}`
+                    : 'Não identificado';
+                const descDestino = destObj
+                    ? `${window.fmtCod(destObj.codigo)} - ${destObj.descricao}`
+                    : 'Não identificado';
+
+                mapa[chave] = {
+                    pairKey: chave,
+                    origemId,
+                    destinoId,
+                    descOrigem,
+                    descDestino,
+                    qtd: 0
+                };
             }
-            mapa[idRef].qtd += 1;
+            mapa[chave].qtd += 1;
         });
 
-        const grupos = Object.values(mapa).sort((a, b) =>
-            a.descricao.localeCompare(b.descricao, 'pt-BR', { sensitivity: 'base' })
-        );
+        const grupos = Object.values(mapa).sort((a, b) => {
+            const cmpDest = a.descDestino.localeCompare(b.descDestino, 'pt-BR', { sensitivity: 'base' });
+            if (cmpDest !== 0) return cmpDest;
+            return a.descOrigem.localeCompare(b.descOrigem, 'pt-BR', { sensitivity: 'base' });
+        });
 
         if (grupos.length === 0) {
             listaAlmoxPendentesEl.innerHTML = `<div style="grid-column: 1 / -1; text-align:center; padding: 1rem; color:#10b981; font-weight:700;">Nenhum almoxarifado possui MACs pendentes de ajuste no momento!</div>`;
-            tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #10b981; font-weight:700;">Nenhum MAC pendente encontrado.</td></tr>`;
+            tbodyMacs.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #10b981; font-weight:700;">Nenhum MAC pendente encontrado.</td></tr>`;
             return;
         }
 
         listaAlmoxPendentesEl.innerHTML = grupos.map(g => {
             const labelQtd = g.qtd === 1 ? '1 MAC' : `${g.qtd} MACs`;
+            const hintTexto = `Coleta (Origem): ${g.descOrigem} | Destino: ${g.descDestino}`;
             return `
-                <button type="button" class="card-almox-pendente" data-almox-id="${g.id}" style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; background:white; border:1px solid #cbd5e1; border-radius:6px; cursor:pointer; text-align:left; transition:all 0.15s;">
-                    <span style="font-size:0.76rem; font-weight:700; color:var(--cnx-blue); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${g.descricao}">${g.descricao}</span>
+                <button type="button" class="card-almox-pendente" data-pair-key="${g.pairKey}" data-origem-id="${g.origemId}" data-destino-id="${g.destinoId}" title="${hintTexto}" style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; background:white; border:1px solid #cbd5e1; border-radius:6px; cursor:pointer; text-align:left; transition:all 0.15s;">
+                    <span style="font-size:0.76rem; font-weight:700; color:var(--cnx-blue); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${g.descDestino}</span>
                     <span style="background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; padding:2px 8px; border-radius:99px; font-size:0.66rem; font-weight:800; flex-shrink:0;">${labelQtd}</span>
                 </button>
             `;
         }).join('');
 
-        // Pré-seleciona automaticamente se veio do painel da Home ou se só houver 1 almoxarifado pendente
-        if (almoxPreSelecionadoId && mapa[almoxPreSelecionadoId]) {
-            selecionarAlmoxarifadoPendente(almoxPreSelecionadoId);
+        // Pré-seleciona automaticamente pelo par exato (Origem + Destino) vindo da Home, ou único card pendente
+        let grupoPre = null;
+        if (autoConfig && typeof autoConfig === 'object') {
+            if (autoConfig.pairKey && mapa[autoConfig.pairKey]) {
+                grupoPre = mapa[autoConfig.pairKey];
+            } else if (autoConfig.destinoId) {
+                grupoPre = grupos.find(g => g.destinoId === String(autoConfig.destinoId));
+            }
+        } else if (typeof autoConfig === 'string' && autoConfig) {
+            grupoPre = grupos.find(g => g.destinoId === String(autoConfig));
         } else if (grupos.length === 1) {
-            selecionarAlmoxarifadoPendente(grupos[0].id);
+            grupoPre = grupos[0];
+        }
+
+        if (grupoPre) {
+            selecionarAlmoxarifadoPendente(grupoPre.origemId, grupoPre.destinoId, grupoPre.pairKey);
+            if (autoConfig && typeof autoConfig === 'object' && autoConfig.abrirAbaMacs) {
+                tabBtns[1].click();
+            }
         }
     }
 
-    function selecionarAlmoxarifadoPendente(idAlmox) {
-        inAlmoxId.value = idAlmox;
+    function selecionarAlmoxarifadoPendente(origemId, destinoId, pairKey) {
+        inAlmoxId.value = destinoId;
+        inAlmoxOrigemId.value = origemId;
 
         listaAlmoxPendentesEl.querySelectorAll('.card-almox-pendente').forEach(btn => {
-            const ativo = btn.dataset.almoxId === idAlmox;
+            const ativo = btn.dataset.pairKey === pairKey;
             btn.style.borderColor = ativo ? 'var(--cnx-orange)' : '#cbd5e1';
             btn.style.background = ativo ? '#fff7ed' : 'white';
             btn.style.boxShadow = ativo ? '0 0 0 2px rgba(242, 101, 34, 0.2)' : 'none';
         });
 
-        chkAllMacs.checked = false;
-        lblTotalMacsSel.innerText = '0';
-        carregarMacsPendentes(idAlmox);
+        chkAllEntrada.checked = false;
+        chkAllSaida.checked = false;
+        if (lblTotalMacsEnt) lblTotalMacsEnt.innerText = '0';
+        if (lblTotalMacsSai) lblTotalMacsSai.innerText = '0';
+        if (lblTotalMacsSel) lblTotalMacsSel.innerText = '0';
+
+        carregarMacsPendentes(origemId, destinoId);
     }
 
     // ================= LÓGICA DO MODAL DE AJUSTE =================
@@ -564,13 +638,15 @@
         formFoiAlterado = false;
         macsDisponiveis = [];
         
-        inAlmoxId.value = ''; inAlmoxDesc.value = ''; 
+        inAlmoxId.value = ''; inAlmoxOrigemId.value = ''; inAlmoxDesc.value = ''; 
         inIdEntrada.value = ''; inIdInventario.value = ''; inObs.value = '';
         inDataAjuste.value = new Date().toISOString().split('T')[0];
         
-        chkAllMacs.checked = false;
-        chkAllMacs.disabled = false;
-        lblTotalMacsSel.innerText = '0';
+        chkAllEntrada.checked = false; chkAllEntrada.disabled = false;
+        chkAllSaida.checked = false; chkAllSaida.disabled = false;
+        if (lblTotalMacsEnt) lblTotalMacsEnt.innerText = '0';
+        if (lblTotalMacsSai) lblTotalMacsSai.innerText = '0';
+        if (lblTotalMacsSel) lblTotalMacsSel.innerText = '0';
         
         tabBtns[0].click(); 
         
@@ -581,7 +657,7 @@
             inIdEntrada.readOnly = false; inIdInventario.readOnly = false;
             inDataAjuste.readOnly = false; inObs.readOnly = false;
             montarFooterFormulario(true);
-            tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #94a3b8;">Selecione um Almoxarifado de Destino na Aba 1 para listar os MACs pendentes.</td></tr>`;
+            tbodyMacs.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #94a3b8;">Selecione um Almoxarifado de Destino na Aba 1 para listar os MACs pendentes.</td></tr>`;
             modalAjuste.style.display = 'flex';
             lucide.createIcons();
             await carregarAlmoxarifadosComPendencias(almoxPreSelecionadoId);
@@ -602,12 +678,14 @@
             if (modo === 'visualizar') {
                 inIdEntrada.readOnly = true; inIdInventario.readOnly = true;
                 inDataAjuste.readOnly = true; inObs.readOnly = true;
-                chkAllMacs.disabled = true;
+                chkAllEntrada.disabled = true;
+                chkAllSaida.disabled = true;
                 montarFooterFormulario(false);
             } else if (modo === 'editar') {
                 inIdEntrada.readOnly = false; inIdInventario.readOnly = false;
                 inDataAjuste.readOnly = false; inObs.readOnly = false;
-                chkAllMacs.disabled = false;
+                chkAllEntrada.disabled = false;
+                chkAllSaida.disabled = false;
                 montarFooterFormulario(true);
             }
             await carregarMacsDoAjuste(id, modo);
@@ -617,11 +695,21 @@
         lucide.createIcons();
     }
 
-    async function carregarMacsPendentes(idAlmox) {
-        tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i> Buscando pendências...</td></tr>`;
+    function ordenarMacsPorProduto(lista) {
+        return [...(lista || [])].sort((a, b) => {
+            const codA = String(a.produto?.codigo ?? '');
+            const codB = String(b.produto?.codigo ?? '');
+            const cmp = codA.localeCompare(codB, 'pt-BR', { numeric: true, sensitivity: 'base' });
+            if (cmp !== 0) return cmp;
+            return String(a.mac ?? '').localeCompare(String(b.mac ?? ''), 'pt-BR', { sensitivity: 'base' });
+        });
+    }
+
+    async function carregarMacsPendentes(origemId, destinoId) {
+        tbodyMacs.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i> Buscando pendências...</td></tr>`;
         lucide.createIcons();
         
-        const { data, error } = await window.db
+        let query = window.db
             .from('coletas_mac')
             .select(`
                 *,
@@ -629,20 +717,32 @@
                 almoxarifado_origem:almoxarifados!almoxarifado_id(codigo, descricao),
                 almoxarifado_destino:almoxarifados!almoxarifado_destino_id(codigo, descricao)
             `)
-            .eq('status', 'PENDENTE')
-            .or(`almoxarifado_destino_id.eq.${idAlmox},and(almoxarifado_destino_id.is.null,almoxarifado_id.eq.${idAlmox})`)
-            .order('data_coleta', { ascending: true });
+            .eq('status', 'PENDENTE');
+
+        if (origemId) {
+            query = query.eq('almoxarifado_id', origemId);
+        }
+
+        if (destinoId) {
+            if (origemId === destinoId) {
+                query = query.or(`almoxarifado_destino_id.eq.${destinoId},almoxarifado_destino_id.is.null`);
+            } else {
+                query = query.eq('almoxarifado_destino_id', destinoId);
+            }
+        }
+
+        const { data, error } = await query;
 
         if (error) {
             console.error('Erro ao buscar MACs pendentes:', error);
-            tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem; color: #ef4444;">Erro ao buscar pendências.</td></tr>`;
+            tbodyMacs.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 2rem; color: #ef4444;">Erro ao buscar pendências.</td></tr>`;
             return;
         }
 
-        macsDisponiveis = data || [];
+        macsDisponiveis = ordenarMacsPorProduto(data || []);
         
         if (macsDisponiveis.length === 0) {
-            tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem; color: #10b981; font-weight:700;"><i data-lucide="check-circle" style="width:24px; height:24px; margin-bottom:8px;"></i><br>Nenhum equipamento pendente de ajuste neste Almoxarifado!</td></tr>`;
+            tbodyMacs.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 2rem; color: #10b981; font-weight:700;"><i data-lucide="check-circle" style="width:24px; height:24px; margin-bottom:8px;"></i><br>Nenhum equipamento pendente de ajuste neste Almoxarifado!</td></tr>`;
             lucide.createIcons();
             return;
         }
@@ -651,7 +751,7 @@
     }
 
     async function carregarMacsDoAjuste(idAjuste, modo) {
-        tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i> Carregando equipamentos vinculados...</td></tr>`;
+        tbodyMacs.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 2rem;"><i data-lucide="loader-2" class="lucide-spin"></i> Carregando equipamentos vinculados...</td></tr>`;
         lucide.createIcons();
         
         const { data, error } = await window.db
@@ -666,12 +766,14 @@
 
         if (error) {
             console.error('Erro ao buscar MACs do ajuste:', error);
-            tbodyMacs.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem; color: #ef4444;">Erro ao carregar equipamentos vinculados.</td></tr>`;
+            tbodyMacs.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 2rem; color: #ef4444;">Erro ao carregar equipamentos vinculados.</td></tr>`;
             return;
         }
 
-        macsDisponiveis = data || [];
-        lblTotalMacsSel.innerText = macsDisponiveis.length;
+        macsDisponiveis = ordenarMacsPorProduto(data || []);
+        if (lblTotalMacsEnt) lblTotalMacsEnt.innerText = macsDisponiveis.length;
+        if (lblTotalMacsSai) lblTotalMacsSai.innerText = macsDisponiveis.length;
+        if (lblTotalMacsSel) lblTotalMacsSel.innerText = macsDisponiveis.length;
         
         renderizarGridMacs(modo === 'editar', true);
     }
@@ -685,7 +787,7 @@
                 : '-';
             const destDesc = m.almoxarifado_destino
                 ? `${window.fmtCod(m.almoxarifado_destino.codigo)} - ${m.almoxarifado_destino.descricao}`
-                : '-';
+                : origDesc;
             const dFmt = m.data_coleta ? new Date(m.data_coleta + 'T12:00:00').toLocaleDateString('pt-BR') : '-';
             const oDesc = `<div style="font-weight:700; color:var(--cnx-blue);">${m.numero_os || '-'}</div><div style="font-size:0.7rem; color:#64748b;">${dFmt}</div>`;
             
@@ -696,8 +798,13 @@
                 const valErp = m.produto_patrimonio_erp || '';
 
                 return `
-                <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s; ${bgCor}">
-                    <td style="padding: 0.6rem; text-align: center;"><input type="checkbox" class="chk-mac-item" data-id="${m.id}" ${checkedStr} style="cursor: pointer;"></td>
+                <tr data-coleta-id="${m.id}" style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s; ${bgCor}">
+                    <td style="padding: 0.5rem 0.35rem; text-align: center;">
+                        <input type="checkbox" class="chk-mac-entrada" data-id="${m.id}" title="Entrada" ${checkedStr} style="cursor: pointer; accent-color: #16a34a;">
+                    </td>
+                    <td style="padding: 0.5rem 0.35rem; text-align: center; border-right: 1px solid #f1f5f9;">
+                        <input type="checkbox" class="chk-mac-saida" data-id="${m.id}" title="Saída" ${checkedStr} style="cursor: pointer; accent-color: #2563eb;">
+                    </td>
                     <td style="padding: 0.6rem; font-size: 0.76rem;">${pDesc}</td>
                     <td style="padding: 0.6rem;">${mDesc}</td>
                     <td style="padding: 0.6rem; font-size: 0.75rem; color: #334155;">${origDesc}</td>
@@ -709,8 +816,9 @@
                 </tr>`;
             } else {
                 return `
-                <tr style="border-bottom: 1px solid #f1f5f9; background: #f8fafc;">
-                    <td style="padding: 0.6rem; text-align: center;"><i data-lucide="check" style="color:#10b981; width:16px;"></i></td>
+                <tr data-coleta-id="${m.id}" style="border-bottom: 1px solid #f1f5f9; background: #f8fafc;">
+                    <td style="padding: 0.5rem 0.35rem; text-align: center;"><i data-lucide="check" style="color:#16a34a; width:15px;"></i></td>
+                    <td style="padding: 0.5rem 0.35rem; text-align: center; border-right: 1px solid #f1f5f9;"><i data-lucide="check" style="color:#2563eb; width:15px;"></i></td>
                     <td style="padding: 0.6rem; font-size: 0.76rem;">${pDesc}</td>
                     <td style="padding: 0.6rem;">${mDesc}</td>
                     <td style="padding: 0.6rem; font-size: 0.75rem; color: #334155;">${origDesc}</td>
@@ -743,21 +851,21 @@
     }
 
     async function salvarAjuste() {
-        const idAlmox = inAlmoxId.value;
+        const idAlmoxDestino = inAlmoxId.value;
         const entErp = inIdEntrada.value.trim().toUpperCase();
         const invErp = inIdInventario.value.trim().toUpperCase();
         const dt = inDataAjuste.value;
-        const chks = Array.from(moduloContent.querySelectorAll('.chk-mac-item:checked'));
+        const linhasSel = obterLinhasSelecionadas();
         const estaNaAbaDados = moduloContent.querySelector('#form-tab-dados')?.style.display !== 'none';
 
-        if (!idAlmox) {
+        if (!idAlmoxDestino) {
             window.appAlert("Atenção", "Selecione um Almoxarifado de Destino na Aba 1.", "warning");
             tabBtns[0].click();
             return;
         }
 
         // Se está na Aba 1 com almoxarifado selecionado e ainda não escolheu os MACs, avança para a Aba 2
-        if (modoForm === 'novo' && estaNaAbaDados && chks.length === 0) {
+        if (modoForm === 'novo' && estaNaAbaDados && linhasSel.length === 0) {
             tabBtns[1].click();
             return;
         }
@@ -771,26 +879,27 @@
             return;
         }
         
-        if (chks.length === 0) {
-            window.appAlert("Atenção", "Selecione pelo menos um MAC na Aba 2 para vincular ao lote.", "warning");
+        if (linhasSel.length === 0) {
+            window.appAlert("Atenção", "Marque pelo menos um MAC (Entrada ou Saída) na Aba 2 para vincular ao lote.", "warning");
             tabBtns[1].click();
             return;
         }
 
         let macsParaAtualizar = [];
-        for (let chk of chks) {
-            const tr = chk.closest('tr');
+        for (let tr of linhasSel) {
             const inErp = tr.querySelector('.in-erp-id');
             const valErp = inErp.value.trim().toUpperCase();
             if (!valErp) {
                 window.appAlert("Atenção", "Você marcou um MAC mas não informou o Novo ID Patrimônio (ERP) na frente dele.", "warning");
                 inErp.focus(); return;
             }
-            macsParaAtualizar.push({ id_coleta: chk.dataset.id, novo_id_erp: valErp });
+            macsParaAtualizar.push({ id_coleta: tr.dataset.coletaId, novo_id_erp: valErp });
         }
 
-        const unchks = Array.from(moduloContent.querySelectorAll('.chk-mac-item:not(:checked)'));
-        let macsParaDesvincular = unchks.map(c => c.dataset.id);
+        const idsSelecionados = new Set(macsParaAtualizar.map(i => i.id_coleta));
+        const macsParaDesvincular = Array.from(tbodyMacs.querySelectorAll('tr[data-coleta-id]'))
+            .map(tr => tr.dataset.coletaId)
+            .filter(id => !idsSelecionados.has(id));
 
         const conf = await window.appConfirm('Salvar Ajuste', `Deseja consolidar o lote com ${macsParaAtualizar.length} equipamento(s)?`);
         if(!conf) return;
@@ -800,7 +909,7 @@
 
         try {
             const payload = {
-                almoxarifado_id: idAlmox,
+                almoxarifado_id: idAlmoxDestino,
                 id_entrada_erp: entErp,
                 id_inventario_erp: invErp,
                 data_ajuste: dt,
@@ -846,7 +955,7 @@
             modalAjuste.style.display = 'none';
             await buscarAjustes();
         } catch (e) { console.error(e); window.appAlert("Erro", "Falha ao gravar o lote de ajuste.", "error"); } 
-        finally { btnSave.disabled = false; btnSave.innerHTML = `Confirmar Ajuste`; }
+        finally { btnSave.disabled = false; btnSave.innerHTML = `<i data-lucide="check-square" style="width: 16px; color: white;"></i> <span>Confirmar Ajuste</span>`; lucide.createIcons(); }
     }
 
     // Prevenção Modal Global Esc

@@ -87,8 +87,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         aplicarPermissoesMenu();
         carregarPerfilRodape(session.user.id);
         await carregarFiltroAlmoxarifados(session.user.id);
+        iniciarMonitorSessao(session.user.id);
         navegarPara('dashboard');
-    } catch (err) { window.location.replace('../index.html'); }
+    } catch (err) {
+        console.error('Erro na inicialização do painel:', err);
+        window.location.replace('../index.html');
+    }
 });
 
 function toggleDropdown(id) {
@@ -240,10 +244,63 @@ async function carregarPainelPendenciasHome() {
 
     const podeAjusteMac = window.temPermissao('ajuste_estoque', 'view');
     const podeRequisicoes = window.temPermissao('requisicoes', 'view');
+    const podeEmprestimos = window.temPermissao('emprestimos', 'view');
 
-    if (!podeAjusteMac && !podeRequisicoes) {
+    if (!podeAjusteMac && !podeRequisicoes && !podeEmprestimos) {
         document.getElementById('painel-pendencias-home')?.classList.remove('visivel');
         return;
+    }
+
+    // Injeta regras de layout (colunas paralelas, scroll acima de 3 itens e loading) uma única vez
+    if (!document.getElementById('style-painel-pendencias-opt')) {
+        const style = document.createElement('style');
+        style.id = 'style-painel-pendencias-opt';
+        style.textContent = `
+            #painel-pendencias-home.multi-col {
+                width: 630px !important;
+                max-width: calc(100vw - 40px) !important;
+            }
+            #painel-pendencias-grid {
+                display: flex;
+                gap: 12px;
+                align-items: flex-start;
+                width: 100%;
+            }
+            .painel-pend-col {
+                flex: 1;
+                min-width: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            #painel-pendencias-home .painel-pend-lista {
+                max-height: 178px;
+                overflow-y: auto;
+                padding-right: 2px;
+            }
+            .painel-pend-badge.vermelho {
+                background: #fee2e2;
+                color: #b91c1c;
+            }
+            .painel-pend-loading {
+                width: 100%;
+                padding: 26px 12px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                color: #64748b;
+                font-size: 0.78rem;
+                font-weight: 700;
+            }
+            .painel-pend-loading svg {
+                width: 22px;
+                height: 22px;
+                color: var(--cnx-orange);
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     let painel = document.getElementById('painel-pendencias-home');
@@ -259,47 +316,28 @@ async function carregarPainelPendenciasHome() {
                         <i data-lucide="refresh-cw" class="refresh-icon"></i>
                     </button>
                 </div>
-
-                <div id="secao-mac-pendencias-home" class="painel-pend-secao">
-                    <div class="painel-pend-sub">
-                        <span>Ajustes MAC Pendentes</span>
-                        <span id="badge-qtd-mac-pendentes" class="painel-pend-badge laranja">0</span>
-                    </div>
-                    <div id="lista-mac-pendentes-home" class="painel-pend-lista">
-                        <div class="painel-pend-vazio">Carregando...</div>
-                    </div>
-                </div>
-
-                <div id="secao-req-pendencias-home" class="painel-pend-secao">
-                    <div class="painel-pend-sub">
-                        <span>Req. Aguardando Aprovação / Envio</span>
-                        <span id="badge-qtd-req-pendencias" class="painel-pend-badge azul">0</span>
-                    </div>
-                    <div id="lista-req-pendencias-home" class="painel-pend-lista">
-                        <div class="painel-pend-vazio">Carregando...</div>
-                    </div>
-                </div>
+                <div id="painel-pendencias-grid"></div>
             </aside>
         `);
         painel = document.getElementById('painel-pendencias-home');
 
         painel.querySelector('#btn-refresh-pendencias-home')?.addEventListener('click', (e) => {
             e.stopPropagation();
-            const icon = painel.querySelector('#btn-refresh-pendencias-home .refresh-icon');
-            if (icon) icon.classList.add('lucide-spin');
-            carregarPainelPendenciasHome().finally(() => {
-                if (icon) icon.classList.remove('lucide-spin');
-            });
+            carregarPainelPendenciasHome();
         });
 
         painel.addEventListener('click', (e) => {
             const card = e.target.closest('[data-abrir-modulo]');
             if (!card) return;
             const mod = card.dataset.abrirModulo;
-            const almoxId = card.dataset.almoxId || null;
 
-            if (mod === 'ajuste_estoque' && almoxId) {
-                window.ajusteEstoqueAutoAbrirAlmoxId = almoxId;
+            if (mod === 'ajuste_estoque') {
+                window.ajusteEstoqueAutoAbrir = {
+                    origemId: card.dataset.origemId || '',
+                    destinoId: card.dataset.destinoId || '',
+                    pairKey: card.dataset.pairKey || '',
+                    abrirAbaMacs: true
+                };
             }
 
             painel.classList.remove('visivel');
@@ -307,15 +345,24 @@ async function carregarPainelPendenciasHome() {
         });
     }
 
-    const secaoMac = painel.querySelector('#secao-mac-pendencias-home');
-    const secaoReq = painel.querySelector('#secao-req-pendencias-home');
-    const elMacLista = painel.querySelector('#lista-mac-pendentes-home');
-    const elReqLista = painel.querySelector('#lista-req-pendencias-home');
-    const elMacQtd = painel.querySelector('#badge-qtd-mac-pendentes');
-    const elReqQtd = painel.querySelector('#badge-qtd-req-pendencias');
+    const gridEl = painel.querySelector('#painel-pendencias-grid');
+    const btnRefresh = painel.querySelector('#btn-refresh-pendencias-home');
+    const iconRefresh = btnRefresh?.querySelector('.refresh-icon');
 
-    if (secaoMac) secaoMac.style.display = podeAjusteMac ? 'flex' : 'none';
-    if (secaoReq) secaoReq.style.display = podeRequisicoes ? 'flex' : 'none';
+    // Exibe animação de carregamento (tanto na abertura quanto ao atualizar)
+    if (idAtual === 'dashboard') {
+        painel.classList.remove('multi-col');
+        painel.classList.add('visivel');
+        if (btnRefresh) btnRefresh.disabled = true;
+        if (iconRefresh) iconRefresh.classList.add('lucide-spin');
+        gridEl.innerHTML = `
+            <div class="painel-pend-loading">
+                <i data-lucide="loader-2" class="lucide-spin"></i>
+                <span>Carregando pendências...</span>
+            </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+    }
 
     try {
         const { data: { session } } = await window.db.auth.getSession();
@@ -333,119 +380,266 @@ async function carregarPainelPendenciasHome() {
         const cargoUpper = String(user?.cargos?.nome || '').toUpperCase();
         const isGestor = cargoUpper === 'ADMINISTRADOR' || cargoUpper.includes('SUPERVISOR') || !!user?.acesso_todos_almoxarifados;
 
-        let almoxIds = (vincs || []).map(v => v.almoxarifado_id);
-        if (Array.isArray(window.almoxarifadosSelecionados) && window.almoxarifadosSelecionados.length > 0) {
-            almoxIds = isGestor
-                ? [...window.almoxarifadosSelecionados]
-                : almoxIds.filter(id => window.almoxarifadosSelecionados.includes(id));
+        let almoxIds = (vincs || []).map(v => String(v.almoxarifado_id));
+        const temSelecaoRodape = Array.isArray(window.almoxarifadosSelecionados) && window.almoxarifadosSelecionados.length > 0;
+        if (temSelecaoRodape) {
+            const selRodape = window.almoxarifadosSelecionados.map(String);
+            almoxIds = isGestor ? selRodape : almoxIds.filter(id => selRodape.includes(id));
         }
 
-        const filtroRestrito = !isGestor || (Array.isArray(window.almoxarifadosSelecionados) && window.almoxarifadosSelecionados.length > 0);
-        let listaMac = [];
-        let listaReq = [];
+        const filtroRestrito = !isGestor || temSelecaoRodape;
+        const categorias = [];
 
-        // 1. Ajustes MAC pendentes (especificando !almoxarifado_id para evitar ambiguidade com almoxarifado_destino_id)
+        // ================= 1. AJUSTES MAC PENDENTES (MESMA REGRA: ORIGEM + DESTINO) =================
         if (podeAjusteMac && (!filtroRestrito || almoxIds.length > 0)) {
             let qMac = window.db
                 .from('coletas_mac')
-                .select('id, almoxarifado_id, almoxarifado:almoxarifados!almoxarifado_id(codigo, descricao)')
+                .select(`
+                    id,
+                    almoxarifado_id,
+                    almoxarifado_destino_id,
+                    almoxarifado_origem:almoxarifados!almoxarifado_id(codigo, descricao),
+                    almoxarifado_destino:almoxarifados!almoxarifado_destino_id(codigo, descricao)
+                `)
                 .eq('status', 'PENDENTE');
 
-            if (filtroRestrito) qMac = qMac.in('almoxarifado_id', almoxIds);
+            if (filtroRestrito) {
+                const idsFmt = almoxIds.join(',');
+                qMac = qMac.or(`almoxarifado_destino_id.in.(${idsFmt}),almoxarifado_id.in.(${idsFmt})`);
+            }
+
             const { data: macs, error: errMac } = await qMac;
             if (errMac) console.error('Erro ao buscar MACs pendentes no painel:', errMac);
-            listaMac = macs || [];
+
+            const listaMac = macs || [];
+            if (listaMac.length > 0) {
+                const mapaAlmoxMac = {};
+                listaMac.forEach(m => {
+                    const origemId = String(m.almoxarifado_id || '');
+                    const destinoId = String(m.almoxarifado_destino_id || m.almoxarifado_id || '');
+                    if (!destinoId) return;
+
+                    const pairKey = `${origemId}|${destinoId}`;
+                    if (!mapaAlmoxMac[pairKey]) {
+                        const origObj = m.almoxarifado_origem;
+                        const destObj = m.almoxarifado_destino || m.almoxarifado_origem;
+                        const descOrigem = origObj
+                            ? `${window.fmtCod(origObj.codigo)} - ${origObj.descricao}`
+                            : 'Não identificado';
+                        const descDestino = destObj
+                            ? `${window.fmtCod(destObj.codigo)} - ${destObj.descricao}`
+                            : 'Não identificado';
+
+                        mapaAlmoxMac[pairKey] = {
+                            pairKey,
+                            origemId,
+                            destinoId,
+                            descOrigem,
+                            descDestino,
+                            qtd: 0
+                        };
+                    }
+                    mapaAlmoxMac[pairKey].qtd += 1;
+                });
+
+                const gruposMac = Object.values(mapaAlmoxMac).sort((a, b) =>
+                    b.qtd - a.qtd ||
+                    a.descDestino.localeCompare(b.descDestino, 'pt-BR', { sensitivity: 'base' }) ||
+                    a.descOrigem.localeCompare(b.descOrigem, 'pt-BR', { sensitivity: 'base' })
+                );
+
+                categorias.push({
+                    titulo: 'Ajustes MAC Pendentes',
+                    badgeClass: 'laranja',
+                    total: listaMac.length,
+                    htmlItens: gruposMac.map(g => {
+                        const rotuloQtd = g.qtd === 1 ? '1 REGISTRO' : `${g.qtd} REGISTROS`;
+                        const hintTexto = `Coleta (Origem): ${g.descOrigem} | Destino: ${g.descDestino}`;
+                        return `
+                            <div class="painel-pend-item" data-abrir-modulo="ajuste_estoque" data-pair-key="${g.pairKey}" data-origem-id="${g.origemId}" data-destino-id="${g.destinoId}" title="${hintTexto}">
+                                <div class="painel-pend-item-topo">
+                                    <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:190px;">${g.descDestino}</span>
+                                    <span style="color:#c2410c; flex-shrink:0;">${rotuloQtd}</span>
+                                </div>
+                                <div class="painel-pend-item-sub">Clique para abrir equipamentos do ajuste</div>
+                            </div>
+                        `;
+                    }).join('')
+                });
+            }
         }
 
-        // 2. Requisições aguardando aprovação ou envio
+        // ================= 2. REQUISIÇÕES (POR ETAPA E RESPONSÁVEL) =================
         if (podeRequisicoes && (!filtroRestrito || almoxIds.length > 0)) {
             let qReq = window.db
                 .from('requisicoes')
-                .select('id, codigo, status, almoxarifado_requisitante_id, almoxarifado_abastecedor_id, requisitante:almoxarifados!almoxarifado_requisitante_id(codigo, descricao)')
-                .in('status', ['PENDENTE', 'APROVADA'])
+                .select(`
+                    id, codigo, status, usuario_solicitante_id,
+                    almoxarifado_requisitante_id, almoxarifado_abastecedor_id,
+                    requisitante:almoxarifados!almoxarifado_requisitante_id(codigo, descricao),
+                    abastecedor:almoxarifados!almoxarifado_abastecedor_id(codigo, descricao),
+                    divergencias:requisicao_divergencias(id)
+                `)
+                .not('status', 'in', '(CANCELADA,REPROVADA)')
                 .order('codigo', { ascending: false })
-                .limit(25);
+                .limit(60);
 
             if (filtroRestrito) {
                 const idsFmt = almoxIds.map(id => `"${id}"`).join(',');
                 qReq = qReq.or(`almoxarifado_requisitante_id.in.(${idsFmt}),almoxarifado_abastecedor_id.in.(${idsFmt})`);
             }
+
             const { data: reqs, error: errReq } = await qReq;
             if (errReq) console.error('Erro ao buscar requisições pendentes no painel:', errReq);
-            listaReq = reqs || [];
+
+            const statusAguardandoReceb = ['ENVIADA', 'ENVIADO', 'EM TRANSITO', 'AGUARDANDO RECEBIMENTO'];
+            const statusFechada = ['CONCLUIDA', 'CONCLUÍDA', 'RECEBIDA', 'CONCLUIDA COM DIVERGENCIA', 'CONCLUÍDA COM DIVERGÊNCIA'];
+
+            const reqsFiltradas = [];
+            (reqs || []).forEach(r => {
+                const st = String(r.status || '').toUpperCase();
+                const origId = String(r.almoxarifado_abastecedor_id || '');
+                const destId = String(r.almoxarifado_requisitante_id || '');
+
+                const pertenceOrigem = !filtroRestrito || almoxIds.includes(origId);
+                const pertenceDestino = !filtroRestrito || almoxIds.includes(destId) || String(r.usuario_solicitante_id) === String(uid);
+
+                const temDivergencia = st.includes('DIVERG') || (Array.isArray(r.divergencias) && r.divergencias.length > 0);
+                const solicitanteDesc = r.requisitante ? `${window.fmtCod(r.requisitante.codigo)} - ${r.requisitante.descricao}` : '-';
+                const origemDesc = r.abastecedor ? `${window.fmtCod(r.abastecedor.codigo)} - ${r.abastecedor.descricao}` : '-';
+
+                if ((st === 'PENDENTE' || st === 'APROVADA') && pertenceOrigem) {
+                    reqsFiltradas.push({
+                        codigo: r.codigo,
+                        etapa: st === 'PENDENTE' ? 'PENDENTE' : 'AGUARD. ENVIO',
+                        cor: '#0369a1',
+                        subtitulo: `Solicitante: ${solicitanteDesc}`
+                    });
+                    return;
+                }
+
+                if (statusAguardandoReceb.includes(st) && pertenceDestino) {
+                    reqsFiltradas.push({
+                        codigo: r.codigo,
+                        etapa: 'AGUARD. RECEB.',
+                        cor: '#6d28d9',
+                        subtitulo: `Origem: ${origemDesc}`
+                    });
+                    return;
+                }
+
+                if (temDivergencia && statusFechada.includes(st) && pertenceOrigem) {
+                    reqsFiltradas.push({
+                        codigo: r.codigo,
+                        etapa: 'COM DIVERGÊNCIA',
+                        cor: '#dc2626',
+                        subtitulo: `Solicitante: ${solicitanteDesc}`
+                    });
+                }
+            });
+
+            if (reqsFiltradas.length > 0) {
+                categorias.push({
+                    titulo: 'Requisições',
+                    badgeClass: 'azul',
+                    total: reqsFiltradas.length,
+                    htmlItens: reqsFiltradas.map(r => {
+                        const cod = String(r.codigo || '').padStart(6, '0');
+                        return `
+                            <div class="painel-pend-item" data-abrir-modulo="requisicoes">
+                                <div class="painel-pend-item-topo">
+                                    <span>REQ #${cod}</span>
+                                    <span style="color:${r.cor}; font-weight:800;">${r.etapa}</span>
+                                </div>
+                                <div class="painel-pend-item-sub" title="${r.subtitulo}">${r.subtitulo}</div>
+                            </div>
+                        `;
+                    }).join('')
+                });
+            }
         }
 
-        const totalPendencias = listaMac.length + listaReq.length;
-        if (totalPendencias === 0 || idAtual !== 'dashboard') {
+        // ================= 3. EMPRÉSTIMOS VENCIDOS =================
+        if (podeEmprestimos && (!filtroRestrito || almoxIds.length > 0)) {
+            const hojeIso = new Date().toISOString().split('T')[0];
+
+            let qEmp = window.db
+                .from('emprestimos')
+                .select('id, codigo, responsavel, previsao_devolucao, status, almoxarifado_id, almoxarifado:almoxarifados(codigo, descricao)')
+                .in('status', ['ATIVO', 'DEVOLUCAO PARCIAL', 'ATRASADO'])
+                .lt('previsao_devolucao', hojeIso)
+                .order('previsao_devolucao', { ascending: true })
+                .limit(30);
+
+            if (filtroRestrito) {
+                qEmp = qEmp.in('almoxarifado_id', almoxIds);
+            }
+
+            const { data: emps, error: errEmp } = await qEmp;
+            if (errEmp) console.error('Erro ao buscar empréstimos vencidos no painel:', errEmp);
+
+            const listaEmp = emps || [];
+            if (listaEmp.length > 0) {
+                categorias.push({
+                    titulo: 'Empréstimos Vencidos',
+                    badgeClass: 'vermelho',
+                    total: listaEmp.length,
+                    htmlItens: listaEmp.map(emp => {
+                        const cod = String(emp.codigo || '').padStart(6, '0');
+                        const prevBr = emp.previsao_devolucao
+                            ? new Date(emp.previsao_devolucao + 'T12:00:00').toLocaleDateString('pt-BR')
+                            : '-';
+                        const resp = emp.responsavel || 'Responsável não informado';
+                        return `
+                            <div class="painel-pend-item" data-abrir-modulo="emprestimos">
+                                <div class="painel-pend-item-topo">
+                                    <span>EMP #${cod}</span>
+                                    <span style="color:#dc2626; font-weight:800;">VENC. ${prevBr}</span>
+                                </div>
+                                <div class="painel-pend-item-sub" title="${resp}">${resp}</div>
+                            </div>
+                        `;
+                    }).join('')
+                });
+            }
+        }
+
+        if (categorias.length === 0 || idAtual !== 'dashboard') {
             painel.classList.remove('visivel');
             return;
         }
 
-        if (podeAjusteMac) {
-            elMacQtd.innerText = listaMac.length;
-
-            const mapaAlmoxMac = {};
-            listaMac.forEach(m => {
-                const key = String(m.almoxarifado_id || 'sem-almox');
-                if (!mapaAlmoxMac[key]) {
-                    const desc = m.almoxarifado
-                        ? `${window.fmtCod(m.almoxarifado.codigo)} - ${m.almoxarifado.descricao}`
-                        : 'Almoxarifado não identificado';
-                    mapaAlmoxMac[key] = {
-                        almoxarifado_id: m.almoxarifado_id,
-                        descricao: desc,
-                        qtd: 0
-                    };
-                }
-                mapaAlmoxMac[key].qtd += 1;
-            });
-
-            const gruposMac = Object.values(mapaAlmoxMac).sort((a, b) =>
-                b.qtd - a.qtd || a.descricao.localeCompare(b.descricao, 'pt-BR', { sensitivity: 'base' })
-            );
-
-            elMacLista.innerHTML = gruposMac.length === 0
-                ? `<div class="painel-pend-vazio">Nenhum MAC pendente.</div>`
-                : gruposMac.map(g => {
-                    const rotuloQtd = g.qtd === 1 ? '1 REGISTRO' : `${g.qtd} REGISTROS`;
-                    return `
-                        <div class="painel-pend-item" data-abrir-modulo="ajuste_estoque" data-almox-id="${g.almoxarifado_id || ''}">
-                            <div class="painel-pend-item-topo">
-                                <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:195px;" title="${g.descricao}">${g.descricao}</span>
-                                <span style="color:#c2410c; flex-shrink:0;">${rotuloQtd}</span>
-                            </div>
-                            <div class="painel-pend-item-sub">Clique para iniciar novo ajuste</div>
-                        </div>
-                    `;
-                }).join('');
+        const colunas = [];
+        for (let i = 0; i < categorias.length; i += 2) {
+            colunas.push(categorias.slice(i, i + 2));
         }
 
-        if (podeRequisicoes) {
-            elReqQtd.innerText = listaReq.length;
+        painel.classList.toggle('multi-col', colunas.length > 1);
 
-            elReqLista.innerHTML = listaReq.length === 0
-                ? `<div class="painel-pend-vazio">Nenhuma requisição pendente.</div>`
-                : listaReq.map(r => {
-                    const cod = String(r.codigo || '').padStart(6, '0');
-                    const etapa = r.status === 'PENDENTE' ? 'AGUARD. APROVAÇÃO' : 'AGUARD. ENVIO';
-                    const solicitante = r.requisitante ? `${window.fmtCod(r.requisitante.codigo)} - ${r.requisitante.descricao}` : '-';
-                    return `
-                        <div class="painel-pend-item" data-abrir-modulo="requisicoes">
-                            <div class="painel-pend-item-topo">
-                                <span>REQ #${cod}</span>
-                                <span style="color:#0369a1;">${etapa}</span>
-                            </div>
-                            <div class="painel-pend-item-sub" title="Solicitante: ${solicitante}">${solicitante}</div>
+        gridEl.innerHTML = colunas.map(col => `
+            <div class="painel-pend-col">
+                ${col.map(cat => `
+                    <div class="painel-pend-secao">
+                        <div class="painel-pend-sub">
+                            <span>${cat.titulo}</span>
+                            <span class="painel-pend-badge ${cat.badgeClass}">${cat.total}</span>
                         </div>
-                    `;
-                }).join('');
-        }
+                        <div class="painel-pend-lista">
+                            ${cat.htmlItens}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `).join('');
 
         painel.classList.add('visivel');
         if (window.lucide) lucide.createIcons();
     } catch (err) {
         console.error('Erro ao carregar painel de pendências:', err);
         painel.classList.remove('visivel');
+    } finally {
+        if (btnRefresh) btnRefresh.disabled = false;
+        if (iconRefresh) iconRefresh.classList.remove('lucide-spin');
     }
 }
 
@@ -1369,6 +1563,197 @@ window.fecharJanelaPeloSidebar = function(e, rota) {
 window.restaurarJanela = function(rota) {
     navegarPara(rota);
 };
+
+// ================= MONITOR DE SESSÃO ATIVA (INATIVIDADE + CONTADOR 60s) =================
+(function setupMonitorSessao() {
+    let sessaoUserId = null;
+    let tempoInatividadeMs = 15 * 60 * 1000;
+    let ultimaInteracao = Date.now();
+    let intervalChecagem = null;
+    let intervalContagem = null;
+    let segundosRestantes = 60;
+    let avisoAberto = false;
+    let eventosRegistrados = false;
+
+    function garantirModalSessao() {
+        if (document.getElementById('modal-sessao-expirando')) return;
+
+        document.body.insertAdjacentHTML('beforeend', `
+            <div id="modal-sessao-expirando" class="custom-popup-overlay" style="z-index: 20000;">
+                <div class="custom-popup-box" style="max-width: 400px; padding: 1.75rem 1.5rem; text-align: center;">
+                    <h3 style="margin: 0 0 6px 0; color: var(--cnx-blue); font-size: 1.05rem; font-weight: 800;">
+                        Sessão Prestes a Expirar
+                    </h3>
+                    <p style="margin: 0 0 1.1rem 0; font-size: 0.8rem; color: #64748b; line-height: 1.4;">
+                        Nenhuma interação foi detectada recentemente. Sua sessão será encerrada automaticamente em:
+                    </p>
+
+                    <!-- Relógio Analógico + Digital -->
+                    <div style="position: relative; width: 132px; height: 132px; margin: 0 auto 1.25rem auto; display: flex; align-items: center; justify-content: center;">
+                        <svg width="132" height="132" viewBox="0 0 132 132" style="transform: rotate(-90deg);">
+                            <circle cx="66" cy="66" r="56" fill="#f8fafc" stroke="#e2e8f0" stroke-width="8"></circle>
+                            <circle id="sessao-ring-progresso" cx="66" cy="66" r="56" fill="none" stroke="var(--cnx-orange)" stroke-width="8" stroke-linecap="round" stroke-dasharray="351.86" stroke-dashoffset="0" style="transition: stroke-dashoffset 0.9s linear, stroke 0.3s;"></circle>
+                        </svg>
+                        <div id="sessao-ponteiro" style="position: absolute; top: 14px; left: 50%; width: 3px; height: 52px; margin-left: -1.5px; background: var(--cnx-blue); border-radius: 99px; transform-origin: bottom center; transform: rotate(0deg); transition: transform 0.9s linear; opacity: 0.35;"></div>
+                        <div style="position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; width: 78px; height: 78px; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                            <span id="sessao-contador-digital" style="font-size: 1.45rem; font-weight: 900; color: var(--cnx-blue); font-variant-numeric: tabular-nums; line-height: 1;">01:00</span>
+                            <span style="font-size: 0.6rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-top: 2px;">segundos</span>
+                        </div>
+                    </div>
+
+                    <div class="popup-actions" style="display: flex; gap: 10px; justify-content: center;">
+                        <button type="button" id="btn-sessao-sair" class="popup-btn cancel" style="flex: 1; justify-content: center;">Sair Agora</button>
+                        <button type="button" id="btn-sessao-continuar" class="popup-btn confirm" style="flex: 1; justify-content: center;">Continuar</button>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        document.getElementById('btn-sessao-continuar').addEventListener('click', () => {
+            fecharAvisoSessao();
+            ultimaInteracao = Date.now();
+        });
+
+        document.getElementById('btn-sessao-sair').addEventListener('click', () => {
+            encerrarSessaoPorInatividade();
+        });
+    }
+
+    async function carregarTempoSessao(userId) {
+        try {
+            const [resUser, resCfg] = await Promise.all([
+                window.db.from('usuarios').select('tempo_sessao_minutos').eq('id', userId).maybeSingle(),
+                window.db.from('configuracoes_sistema').select('valor').eq('chave', 'regras').maybeSingle()
+            ]);
+
+            if (resUser.error) console.warn('[Sessão] Erro ao ler tempo_sessao_minutos do usuário:', resUser.error.message);
+
+            const tempoUser = Number(resUser.data?.tempo_sessao_minutos);
+            const tempoPadrao = Number(resCfg.data?.valor?.tempo_sessao_minutos);
+
+            const minutosFinais = (tempoUser > 0) ? tempoUser : ((tempoPadrao > 0) ? tempoPadrao : 15);
+            tempoInatividadeMs = minutosFinais * 60 * 1000;
+            console.log(`[Sessão] Monitor ativo: ${minutosFinais} min de inatividade.`);
+        } catch (err) {
+            console.warn('[Sessão] Usando padrão de 15 min:', err);
+            tempoInatividadeMs = 15 * 60 * 1000;
+        }
+    }
+
+    function atualizarVisorRelogio() {
+        const digital = document.getElementById('sessao-contador-digital');
+        const ring = document.getElementById('sessao-ring-progresso');
+        const ponteiro = document.getElementById('sessao-ponteiro');
+
+        const mins = String(Math.floor(segundosRestantes / 60)).padStart(2, '0');
+        const segs = String(segundosRestantes % 60).padStart(2, '0');
+        if (digital) {
+            digital.innerText = `${mins}:${segs}`;
+            digital.style.color = segundosRestantes <= 15 ? '#dc2626' : 'var(--cnx-blue)';
+        }
+
+        const circunferencia = 351.86;
+        const fracao = (60 - segundosRestantes) / 60;
+        if (ring) {
+            ring.style.strokeDashoffset = String(circunferencia * fracao);
+            ring.style.stroke = segundosRestantes <= 15 ? '#dc2626' : 'var(--cnx-orange)';
+        }
+
+        if (ponteiro) {
+            const graus = (60 - segundosRestantes) * 6;
+            ponteiro.style.transform = `rotate(${graus}deg)`;
+        }
+    }
+
+    function abrirAvisoSessao() {
+        if (avisoAberto) return;
+        garantirModalSessao();
+        avisoAberto = true;
+        segundosRestantes = 60;
+        atualizarVisorRelogio();
+
+        const modal = document.getElementById('modal-sessao-expirando');
+        if (modal) modal.classList.add('show');
+
+        if (intervalContagem) clearInterval(intervalContagem);
+        intervalContagem = setInterval(() => {
+            segundosRestantes -= 1;
+            if (segundosRestantes <= 0) {
+                segundosRestantes = 0;
+                atualizarVisorRelogio();
+                encerrarSessaoPorInatividade();
+                return;
+            }
+            atualizarVisorRelogio();
+        }, 1000);
+    }
+
+    function fecharAvisoSessao() {
+        avisoAberto = false;
+        if (intervalContagem) {
+            clearInterval(intervalContagem);
+            intervalContagem = null;
+        }
+        document.getElementById('modal-sessao-expirando')?.classList.remove('show');
+    }
+
+    async function encerrarSessaoPorInatividade() {
+        fecharAvisoSessao();
+        if (intervalChecagem) clearInterval(intervalChecagem);
+        try {
+            await window.db.auth.signOut();
+        } finally {
+            window.location.replace('../index.html');
+        }
+    }
+
+    function registrarInteracao() {
+        if (avisoAberto) return;
+        ultimaInteracao = Date.now();
+    }
+
+    function iniciarLoopChecagem() {
+        if (!eventosRegistrados) {
+            eventosRegistrados = true;
+            ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+                document.addEventListener(evt, registrarInteracao, { passive: true });
+            });
+        }
+
+        ultimaInteracao = Date.now();
+        if (intervalChecagem) clearInterval(intervalChecagem);
+        intervalChecagem = setInterval(() => {
+            if (avisoAberto) return;
+            if (Date.now() - ultimaInteracao >= tempoInatividadeMs) {
+                abrirAvisoSessao();
+            }
+        }, 1000);
+    }
+
+    window.iniciarMonitorSessao = async function(userId) {
+        if (!userId) {
+            const { data: { session } } = await window.db.auth.getSession();
+            userId = session?.user?.id || null;
+        }
+        if (!userId) return;
+
+        sessaoUserId = userId;
+        await carregarTempoSessao(userId);
+        iniciarLoopChecagem();
+    };
+
+    window.atualizarMonitorSessao = async function() {
+        if (!sessaoUserId) {
+            const { data: { session } } = await window.db.auth.getSession();
+            sessaoUserId = session?.user?.id || null;
+        }
+        if (!sessaoUserId) return;
+
+        fecharAvisoSessao();
+        await carregarTempoSessao(sessaoUserId);
+        iniciarLoopChecagem();
+    };
+})();
 
 // Tecla ESC fecha modais ou popup primeiro. Depois fecha janela
 document.addEventListener('keydown', (e) => {

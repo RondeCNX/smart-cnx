@@ -144,7 +144,7 @@
 
             const { data: user } = await window.db
                 .from('usuarios')
-                .select('nome_completo, email, avatar_url, cargos(nome)')
+                .select('nome_completo, email, avatar_url, tempo_sessao_minutos, cargos(nome)')
                 .eq('id', usuarioLogadoId)
                 .single();
 
@@ -178,8 +178,10 @@
             if (!pode('cfg_conta', 'edit')) {
                 const btnAv = moduloContent.querySelector('#btn-cfg-upload-avatar');
                 const btnSn = moduloContent.querySelector('#btn-cfg-salvar-senha');
+                const btnTs = moduloContent.querySelector('#btn-cfg-salvar-sessao-conta');
                 if (btnAv) btnAv.style.display = 'none';
                 if (btnSn) btnSn.style.display = 'none';
+                if (btnTs) btnTs.style.display = 'none';
             }
             if (!pode('cfg_regras', 'edit')) {
                 const btnRg = moduloContent.querySelector('#btn-cfg-salvar-regras');
@@ -209,6 +211,11 @@
             moduloContent.querySelector('#cfg-conta-email').innerText = user?.email || session.user.email || '-';
             if (user?.avatar_url) {
                 moduloContent.querySelector('#cfg-avatar-preview').innerHTML = `<img src="${user.avatar_url}" style="width:100%; height:100%; object-fit:cover;">`;
+            }
+
+            const inTempoConta = moduloContent.querySelector('#cfg-conta-tempo-sessao');
+            if (inTempoConta) {
+                inTempoConta.value = user?.tempo_sessao_minutos ? String(user.tempo_sessao_minutos) : '';
             }
 
             moduloContent.querySelector('#cfg-sobre-link').value = `${window.location.origin}/`;
@@ -303,6 +310,42 @@
         window.appAlert('Sucesso', 'Senha atualizada com sucesso!', 'success');
     });
 
+    moduloContent.querySelector('#btn-cfg-salvar-sessao-conta')?.addEventListener('click', async () => {
+        const raw = moduloContent.querySelector('#cfg-conta-tempo-sessao')?.value.trim();
+        let minutos = null;
+
+        if (raw !== '') {
+            minutos = parseInt(raw, 10);
+            if (isNaN(minutos) || minutos < 1 || minutos > 480) {
+                window.appAlert('Atenção', 'Informe um valor entre 1 e 480 minutos, ou deixe em branco para usar o padrão.', 'warning');
+                return;
+            }
+        }
+
+        try {
+            const { error } = await window.db
+                .from('usuarios')
+                .update({ tempo_sessao_minutos: minutos })
+                .eq('id', usuarioLogadoId);
+            if (error) throw error;
+
+            if (typeof window.atualizarMonitorSessao === 'function') {
+                await window.atualizarMonitorSessao();
+            }
+
+            window.appAlert(
+                'Sucesso',
+                minutos
+                    ? `Seu tempo de sessão ativa foi definido para ${minutos} minuto(s).`
+                    : 'Seu perfil voltou a usar o tempo padrão da aplicação.',
+                'success'
+            );
+        } catch (err) {
+            console.error(err);
+            window.appAlert('Erro', 'Não foi possível salvar o tempo de sessão.', 'error');
+        }
+    });
+
     // ================= CONFIGURACOES_SISTEMA (REGRAS, BUCKETS, SOBRE) =================
     async function carregarConfiguracoesSistema() {
         const { data, error } = await window.db.from('configuracoes_sistema').select('*');
@@ -312,9 +355,14 @@
         data.forEach(row => { mapa[row.chave] = row.valor; });
 
         if (mapa.regras) {
+            const tempoPadrao = mapa.regras.tempo_sessao_minutos ?? 15;
             moduloContent.querySelector('#cfg-regra-prazo').value = mapa.regras.prazo_devolucao_dias ?? 7;
+            moduloContent.querySelector('#cfg-regra-tempo-sessao').value = tempoPadrao;
             moduloContent.querySelector('#cfg-regra-anexo-req').checked = !!mapa.regras.exigir_anexo_req;
             moduloContent.querySelector('#cfg-regra-anexo-emp').checked = !!mapa.regras.exigir_anexo_emp;
+
+            const lblPadrao = moduloContent.querySelector('#cfg-lbl-sessao-padrao');
+            if (lblPadrao) lblPadrao.innerText = `${tempoPadrao} min`;
         }
         if (mapa.buckets) {
             moduloContent.querySelector('#cfg-bucket-req').value = String(mapa.buckets['requisicoes-assinaturas'] ?? 90);
@@ -347,12 +395,27 @@
     }
 
     moduloContent.querySelector('#btn-cfg-salvar-regras').addEventListener('click', async () => {
+        const tempoSessao = parseInt(moduloContent.querySelector('#cfg-regra-tempo-sessao').value, 10);
+        if (isNaN(tempoSessao) || tempoSessao < 1 || tempoSessao > 480) {
+            window.appAlert('Atenção', 'O tempo padrão de sessão deve ser entre 1 e 480 minutos.', 'warning');
+            return;
+        }
+
         try {
             await salvarConfigChave('regras', {
                 prazo_devolucao_dias: parseInt(moduloContent.querySelector('#cfg-regra-prazo').value) || 7,
+                tempo_sessao_minutos: tempoSessao,
                 exigir_anexo_req: moduloContent.querySelector('#cfg-regra-anexo-req').checked,
                 exigir_anexo_emp: moduloContent.querySelector('#cfg-regra-anexo-emp').checked
             });
+
+            const lblPadrao = moduloContent.querySelector('#cfg-lbl-sessao-padrao');
+            if (lblPadrao) lblPadrao.innerText = `${tempoSessao} min`;
+
+            if (typeof window.atualizarMonitorSessao === 'function') {
+                await window.atualizarMonitorSessao();
+            }
+
             window.appAlert('Sucesso', 'Regras operacionais salvas!', 'success');
         } catch (err) {
             window.appAlert('Erro', 'Falha ao salvar regras.', 'error');
@@ -699,7 +762,8 @@
             qtd_enviada: 'Qtd. Enviada', qtd_recebida: 'Qtd. Recebida',
             previsao_devolucao: 'Prev. Devolução', data_devolucao: 'Data Devolução',
             numero_pedido: 'Pedido ERP', produto_patrimonio_erp: 'Patrimônio ERP',
-            mac: 'MAC', numero_serie: 'Nº de Série'
+            mac: 'MAC', numero_serie: 'Nº de Série',
+            tempo_sessao_minutos: 'Tempo de Sessão (min)'
         };
 
         const mapaTelas = {};

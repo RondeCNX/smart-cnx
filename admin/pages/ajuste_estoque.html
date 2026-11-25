@@ -75,7 +75,7 @@
 
     <!-- MODAL PRINCIPAL: FORMULÁRIO DE AJUSTE -->
     <div class="modal-overlay" id="modal-ajuste" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); z-index: 9999; align-items: center; justify-content: center; padding: 1rem;">
-        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 1150px; height: 560px; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden;">
+        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 1180px; height: 560px; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden;">
             
             <div class="modal-header" style="background: var(--cnx-blue); padding: 0.9rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
                 <h3 id="modal-titulo-ajuste" style="margin: 0; color: white; font-size: 1.1rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
@@ -96,6 +96,7 @@
                 <div id="form-tab-dados" class="tab-form-content" style="display: block; height: 100%; overflow-y: auto;">
                     
                     <input type="hidden" id="ajuste-almox-id">
+                    <input type="hidden" id="ajuste-almox-origem-id">
 
                     <!-- MODO NOVO: LISTA AUTOMÁTICA DE ALMOXARIFADOS DE DESTINO COM PENDÊNCIAS (SCROLL PRÓPRIO) -->
                     <div id="bloco-almox-pendentes" class="form-group" style="margin-bottom: 1rem;">
@@ -103,7 +104,7 @@
                             <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase; margin: 0;">
                                 Almoxarifados de Destino com MACs Pendentes <span style="color:red;">*</span>
                             </label>
-                            <span style="font-size: 0.65rem; color: #64748b;">Dê dois cliques para abrir os equipamentos na Aba 2</span>
+                            <span style="font-size: 0.65rem; color: #64748b;">Passe o mouse para ver a origem | Dois cliques abre a Aba 2</span>
                         </div>
                         <div id="lista-almox-pendentes-ajuste" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 8px; max-height: 115px; overflow-y: auto; padding: 8px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px;">
                             <div style="color:#94a3b8; font-size:0.8rem; padding: 0.5rem;">Carregando almoxarifados com pendências...</div>
@@ -142,26 +143,39 @@
                     <div style="display: flex; flex-direction: column; height: 100%;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0.8rem; flex-shrink: 0;">
                             <h4 style="margin: 0; font-size: 0.9rem; color: var(--cnx-blue);">Coletas Vinculadas</h4>
-                            <div style="font-size: 0.75rem; font-weight: 800; color: var(--cnx-orange);">Equipamentos Selecionados: <span id="lbl-total-macs-sel">0</span></div>
+                            <div style="font-size: 0.75rem; font-weight: 800; color: var(--cnx-orange); display: flex; gap: 14px;">
+                                <span style="color: #16a34a;">Entrada: <span id="lbl-total-macs-ent">0</span></span>
+                                <span style="color: #2563eb;">Saída: <span id="lbl-total-macs-sai">0</span></span>
+                                <span>Selecionados: <span id="lbl-total-macs-sel">0</span></span>
+                            </div>
                         </div>
 
                         <div class="table-scroll-wrapper" style="flex: 1; min-height: 0; overflow-y: auto; border: 1px solid #cbd5e1;">
                             <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.8rem;">
                                 <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
                                     <tr>
-                                        <th style="padding: 0.6rem; text-align: center; width: 40px;" id="col-check-all">
-                                            <input type="checkbox" id="chk-all-macs" style="cursor: pointer;">
+                                        <th style="padding: 0.5rem 0.35rem; text-align: center; width: 46px; color: #16a34a; font-size: 0.68rem;" title="Marcar Entrada de todos">
+                                            <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+                                                <span>Ent.</span>
+                                                <input type="checkbox" id="chk-all-entrada" style="cursor: pointer; accent-color: #16a34a;">
+                                            </div>
+                                        </th>
+                                        <th style="padding: 0.5rem 0.35rem; text-align: center; width: 46px; color: #2563eb; font-size: 0.68rem; border-right: 1px solid #e2e8f0;" title="Marcar Saída de todos">
+                                            <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+                                                <span>Saí.</span>
+                                                <input type="checkbox" id="chk-all-saida" style="cursor: pointer; accent-color: #2563eb;">
+                                            </div>
                                         </th>
                                         <th style="padding: 0.6rem; color: #334155;">Produto Consumo</th>
                                         <th style="padding: 0.6rem; color: #334155;">MAC / Série</th>
                                         <th style="padding: 0.6rem; color: #334155;">Almox. Origem</th>
                                         <th style="padding: 0.6rem; color: #334155;">Almox. Destino</th>
                                         <th style="padding: 0.6rem; color: #334155;">O.S. / Data</th>
-                                        <th style="padding: 0.6rem; color: var(--cnx-blue); background: #f0f9ff; border-left: 1px solid #bae6fd; width: 160px;">ID Patrimônio<span style="color:red;">*</span></th>
+                                        <th style="padding: 0.6rem; color: var(--cnx-blue); background: #f0f9ff; border-left: 1px solid #bae6fd; width: 155px;">ID Patrimônio<span style="color:red;">*</span></th>
                                     </tr>
                                 </thead>
                                 <tbody id="tbody-itens-pendentes">
-                                    <tr><td colspan="7" style="text-align: center; padding: 2rem; color: #94a3b8;">Selecione um Almoxarifado de Destino na Aba 1 para listar os MACs pendentes.</td></tr>
+                                    <tr><td colspan="8" style="text-align: center; padding: 2rem; color: #94a3b8;">Selecione um Almoxarifado de Destino na Aba 1 para listar os MACs pendentes.</td></tr>
                                 </tbody>
                             </table>
                         </div>

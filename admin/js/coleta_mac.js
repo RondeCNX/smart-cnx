@@ -32,6 +32,14 @@
     
     const tabBtns = moduloContent.querySelectorAll('.tab-form-btn');
     const tabContents = moduloContent.querySelectorAll('.tab-form-content');
+    const tabBtnLote = moduloContent.querySelector('#tab-btn-lote');
+    const badgeQtdLote = moduloContent.querySelector('#badge-qtd-lote');
+    const wrapperChkLote = moduloContent.querySelector('#wrapper-chk-lote');
+    const chkModoLote = moduloContent.querySelector('#coleta-modo-lote');
+    const wrapperAcaoLote = moduloContent.querySelector('#wrapper-acao-lote');
+    const btnAddItemLote = moduloContent.querySelector('#btn-add-item-lote');
+    const btnLimparLoteModal = moduloContent.querySelector('#btn-limpar-lote-modal');
+    const tbodyLoteColeta = moduloContent.querySelector('#tbody-lote-coleta');
 
     const inData = moduloContent.querySelector('#coleta-data');
     const inAlmoxId = moduloContent.querySelector('#coleta-almox-id');
@@ -72,6 +80,9 @@
     let registroEmEdicaoId = null; 
     let formFoiAlterado = false;
     let tipoConsultaAtual = '';
+    let modoLote = false;
+    let itensLote = [];
+    let validandoMac = false;
 
     btnRefresh.addEventListener('click', async () => {
         const icon = btnRefresh.querySelector('.refresh-icon');
@@ -173,6 +184,54 @@
 
         if (lblTotalGeral) lblTotalGeral.innerText = todasColetas.length;
         aplicarFiltrosEOrdenar();
+    }
+
+    // ================= ORDENAÇÃO DA TABELA PRINCIPAL =================
+    function atualizarIconesOrdenacao() {
+        moduloContent.querySelectorAll('th.sort-col').forEach(th => {
+            const icon = th.querySelector('.sort-icon, svg');
+            if (!icon) return;
+            if (th.dataset.col === sortConfig.key) {
+                icon.style.opacity = '1';
+                icon.style.transform = sortConfig.direction === 'asc' ? 'rotate(180deg)' : 'rotate(0deg)';
+            } else {
+                icon.style.opacity = '0.35';
+                icon.style.transform = 'rotate(0deg)';
+            }
+        });
+    }
+
+    moduloContent.querySelectorAll('th.sort-col').forEach(th => {
+        th.addEventListener('click', () => {
+            const col = th.dataset.col;
+            if (!col) return;
+            if (sortConfig.key === col) {
+                sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortConfig.key = col;
+                sortConfig.direction = 'asc';
+            }
+            aplicarFiltrosEOrdenar();
+        });
+    });
+
+    function ordenarLista(lista) {
+        const { key, direction } = sortConfig;
+        if (!key) return lista;
+        const mult = direction === 'asc' ? 1 : -1;
+
+        return [...lista].sort((a, b) => {
+            const va = a[key] ?? '';
+            const vb = b[key] ?? '';
+
+            if (key === 'data_coleta') {
+                const da = va ? new Date(va).getTime() : 0;
+                const db = vb ? new Date(vb).getTime() : 0;
+                return (da - db) * mult;
+            }
+
+            return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true, sensitivity: 'base' }) * mult;
+        });
     }
 
     // ================= FILTROS E TABELA =================
@@ -279,7 +338,8 @@
                 return f.exato ? v === f.valor : v.includes(f.valor);
             });
         });
-        if (window.ordenarDadosTabela) lista = window.ordenarDadosTabela(lista, sortConfig);
+        lista = ordenarLista(lista);
+        atualizarIconesOrdenacao();
         if (lblTotalExibidos) lblTotalExibidos.innerText = lista.length;
         renderizarGrid(lista);
     }
@@ -329,10 +389,215 @@
         lucide.createIcons();
     }
 
-    // ================= EVENTOS DA TELA PRINCIPAL =================
-    if (window.configurarOrdenacaoTabela) { window.configurarOrdenacaoTabela(moduloContent, sortConfig, aplicarFiltrosEOrdenar); }
+    // ================= VALIDAÇÃO PRINCIPAL DE MAC DUPLICADO =================
+    async function verificarMacDuplicado(macRaw) {
+        const mac = String(macRaw || '').trim().toUpperCase();
+        if (!mac) return false;
 
+        // 1. Verifica no lote atual em memória
+        if (modoLote && itensLote.some(i => i.mac === mac)) {
+            window.appAlert('MAC Duplicado', `O MAC <strong>${mac}</strong> já foi adicionado neste lote.`, 'warning');
+            return true;
+        }
+
+        // 2. Verifica na base de dados (desconsiderando CANCELADO e o próprio registro em edição)
+        let query = window.db
+            .from('coletas_mac')
+            .select('id, mac, numero_serie, status')
+            .eq('mac', mac)
+            .neq('status', 'CANCELADO')
+            .limit(1);
+
+        if (modoForm === 'editar' && registroEmEdicaoId) {
+            query = query.neq('id', registroEmEdicaoId);
+        }
+
+        const { data, error } = await query;
+        if (!error && data && data.length > 0) {
+            window.appAlert('MAC Duplicado', `O MAC <strong>${mac}</strong> já está cadastrado no sistema (Status: ${data[0].status || '-'}).`, 'warning');
+            return true;
+        }
+
+        return false;
+    }
+
+    // ================= LÓGICA DE COLETA EM LOTE =================
+    function atualizarInterfaceModoLote() {
+        const ativo = modoForm === 'novo' && modoLote;
+        tabBtnLote.style.display = ativo ? 'flex' : 'none';
+        wrapperAcaoLote.style.display = ativo ? 'flex' : 'none';
+
+        if (modoForm === 'novo') {
+            modalTitulo.innerHTML = ativo
+                ? `<i data-lucide="layers" style="color: var(--cnx-orange); width: 20px;"></i> <span>Coleta em Lote de MAC</span>`
+                : `<i data-lucide="cpu" style="color: var(--cnx-orange); width: 20px;"></i> <span>Registro Unitário de Coleta</span>`;
+        }
+
+        const spanSalvar = footerColeta.querySelector('#btn-salvar-form span');
+        if (spanSalvar) {
+            spanSalvar.innerText = ativo ? `Salvar Lote (${itensLote.length})` : 'Salvar Coleta';
+        }
+        lucide.createIcons();
+    }
+
+    function renderizarTabelaLote() {
+        badgeQtdLote.innerText = itensLote.length;
+        const spanSalvar = footerColeta.querySelector('#btn-salvar-form span');
+        if (spanSalvar && modoLote) {
+            spanSalvar.innerText = `Salvar Lote (${itensLote.length})`;
+        }
+
+        if (itensLote.length === 0) {
+            tbodyLoteColeta.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 1.8rem; color: #94a3b8;">Nenhum equipamento adicionado ao lote ainda.</td></tr>`;
+            return;
+        }
+
+        tbodyLoteColeta.innerHTML = itensLote.map((item, idx) => `
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 0.5rem 0.6rem; text-align: center; color: #64748b; font-weight: 700;">${itensLote.length - idx}</td>
+                <td style="padding: 0.5rem 0.6rem; font-weight: 600; color: #334155;">${item.produto_cod} - ${item.produto_desc}</td>
+                <td style="padding: 0.5rem 0.6rem; font-weight: 800; color: var(--cnx-orange);">${item.mac}</td>
+                <td style="padding: 0.5rem 0.6rem; font-weight: 700; color: #475569;">${item.numero_serie || '-'}</td>
+                <td style="padding: 0.5rem 0.6rem; text-align: center;">
+                    <button type="button" class="btn-rem-item-lote" data-id-local="${item.idLocal}" title="Remover do Lote" style="background: none; border: none; color: #ef4444; cursor: pointer;">
+                        <i data-lucide="trash-2" style="width: 15px;"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+        lucide.createIcons();
+    }
+
+    async function adicionarItemAoLote() {
+        const prodId = inProdutoId.value;
+        const prodCod = inProdutoCod.value.trim().toUpperCase();
+        const prodDesc = inProdutoDesc.value.trim();
+        const mac = inMac.value.trim().toUpperCase();
+        const serie = inSerie.value.trim().toUpperCase();
+
+        if (!prodId) {
+            window.appAlert('Atenção', 'Selecione o Produto / Modelo antes de adicionar ao lote.', 'warning');
+            inProdutoCod.focus();
+            return;
+        }
+        if (!mac) {
+            window.appAlert('Atenção', 'Informe ou bipe o MAC (Gpon).', 'warning');
+            inMac.focus();
+            return;
+        }
+
+        validandoMac = true;
+        const macDuplicado = await verificarMacDuplicado(mac);
+        validandoMac = false;
+        if (macDuplicado) {
+            inMac.value = '';
+            inMac.focus();
+            return;
+        }
+
+        itensLote.unshift({
+            idLocal: Date.now() + Math.floor(Math.random() * 1000),
+            produto_consumo_id: prodId,
+            produto_cod: prodCod,
+            produto_desc: prodDesc,
+            mac,
+            numero_serie: serie
+        });
+
+        formFoiAlterado = true;
+        renderizarTabelaLote();
+
+        // Mantém o produto preenchido para agilizar leituras em sequência (mas livre para alterar)
+        inMac.value = '';
+        inSerie.value = '';
+        inMac.focus();
+    }
+
+    chkModoLote.addEventListener('change', async () => {
+        if (!chkModoLote.checked && itensLote.length > 0) {
+            const conf = await window.appConfirm('Desativar Coleta em Lote', `Existem ${itensLote.length} equipamento(s) no lote. Deseja limpar a lista e voltar para coleta unitária?`, 'warning');
+            if (!conf) {
+                chkModoLote.checked = true;
+                return;
+            }
+            itensLote = [];
+            renderizarTabelaLote();
+        }
+        modoLote = chkModoLote.checked;
+        atualizarInterfaceModoLote();
+        if (!modoLote && moduloContent.querySelector('#form-tab-lote').style.display !== 'none') {
+            tabBtns[0].click();
+        }
+    });
+
+    btnAddItemLote.addEventListener('click', adicionarItemAoLote);
+
+    btnLimparLoteModal.addEventListener('click', async () => {
+        if (itensLote.length === 0) return;
+        const conf = await window.appConfirm('Limpar Lote', 'Deseja remover todos os equipamentos da lista do lote?', 'warning');
+        if (!conf) return;
+        itensLote = [];
+        renderizarTabelaLote();
+    });
+
+    // ================= EVENTOS DE TECLADO (MAC -> SÉRIE -> LOTE OU SALVAR) =================
+    inMac.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const mac = inMac.value.trim().toUpperCase();
+            if (!mac) return;
+
+            validandoMac = true;
+            const duplicado = await verificarMacDuplicado(mac);
+            validandoMac = false;
+
+            if (duplicado) {
+                inMac.value = '';
+                inMac.focus();
+            } else {
+                inSerie.focus();
+            }
+        }
+    });
+
+    inMac.addEventListener('focusout', async () => {
+        if (validandoMac || modoForm === 'visualizar') return;
+        const mac = inMac.value.trim().toUpperCase();
+        if (!mac) return;
+
+        validandoMac = true;
+        const duplicado = await verificarMacDuplicado(mac);
+        validandoMac = false;
+
+        if (duplicado) {
+            inMac.value = '';
+            inMac.focus();
+        }
+    });
+
+    inSerie.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (modoForm === 'visualizar') return;
+
+            if (modoForm === 'novo' && modoLote) {
+                await adicionarItemAoLote();
+            } else {
+                await salvarColeta();
+            }
+        }
+    });
+
+    // ================= EVENTOS DA TELA PRINCIPAL =================
     moduloContent.addEventListener('click', async (e) => {
+        const btnRemLote = e.target.closest('.btn-rem-item-lote');
+        if (btnRemLote) {
+            const idLocal = Number(btnRemLote.dataset.idLocal);
+            itensLote = itensLote.filter(i => i.idLocal !== idLocal);
+            renderizarTabelaLote();
+            return;
+        }
+
         const btnAcao = e.target.closest('.btn-acao');
         if (btnAcao) {
             const id = btnAcao.dataset.id;
@@ -406,12 +671,13 @@
     });
     
     async function fecharModalColeta() {
-        if (formFoiAlterado && modoForm !== 'visualizar') {
+        if ((formFoiAlterado || itensLote.length > 0) && modoForm !== 'visualizar') {
             const conf = await window.appConfirm('Atenção', 'Alterações não guardadas. Deseja realmente sair?', 'warning');
             if(!conf) return;
         }
         modalColeta.style.display = 'none';
         formFoiAlterado = false;
+        itensLote = [];
     }
     moduloContent.querySelector('#btn-fechar-coleta').addEventListener('click', fecharModalColeta);
 
@@ -448,6 +714,10 @@
         modoForm = modo;
         registroEmEdicaoId = id;
         formFoiAlterado = false;
+        modoLote = false;
+        itensLote = [];
+        chkModoLote.checked = false;
+        renderizarTabelaLote();
         
         inData.value = new Date().toISOString().split('T')[0];
         inAlmoxId.value = ''; inAlmoxDesc.value = '';
@@ -470,9 +740,10 @@
         moduloContent.querySelector('#btn-busca-produto').style.display = 'block';
         
         if (modo === 'novo') {
-            modalTitulo.innerHTML = `<i data-lucide="cpu" style="color: var(--cnx-orange); width: 20px;"></i> <span>Registro Unitário de Coleta</span>`;
+            wrapperChkLote.style.display = 'flex';
             atualizarEstadoCampoOs();
             montarFooterFormulario(true);
+            atualizarInterfaceModoLote();
             
             // Define por padrão o almoxarifado de código "1" (se permitido), ou o único vinculado ao usuário
             const permitidos = almoxarifados.filter(a => meusAlmoxarifadosIds.includes(a.id));
@@ -488,6 +759,10 @@
                 inAlmoxDestinoDesc.value = descFmt;
             }
         } else {
+            wrapperChkLote.style.display = 'none';
+            tabBtnLote.style.display = 'none';
+            wrapperAcaoLote.style.display = 'none';
+
             const r = todasColetas.find(x => x.id === id);
             if (!r) return;
             
@@ -542,20 +817,19 @@
                 </button>
             `;
             footerColeta.querySelector('#btn-cancel-form').addEventListener('click', fecharModalColeta);
-            footerColeta.querySelector('#btn-salvar-form').addEventListener('click', salvarRegistroUnico);
+            footerColeta.querySelector('#btn-salvar-form').addEventListener('click', salvarColeta);
         }
         lucide.createIcons();
     }
 
-    async function salvarRegistroUnico() {
+    async function salvarColeta() {
         const d = inData.value;
         const idAlmoxOrigem = inAlmoxId.value;
         const idAlmoxDestino = inAlmoxDestinoId.value;
         const isEstoque = inTipoOs.value === 'ESTOQUE';
         const os = isEstoque ? '' : inOs.value.trim().toUpperCase();
-        const prod = inProdutoId.value;
-        const mac = inMac.value.trim().toUpperCase();
-        
+        const obs = inObs.value.trim().toUpperCase();
+
         if (!d || !idAlmoxOrigem || !idAlmoxDestino || (!isEstoque && !os)) {
             window.appAlert(
                 "Atenção",
@@ -564,10 +838,77 @@
                     : "Preencha a Data, O.S., Almoxarifado de Origem e Almoxarifado de Destino na Aba 1.",
                 "warning"
             );
+            tabBtns[0].click();
             return;
         }
+
+        // ===== MODO LOTE =====
+        if (modoForm === 'novo' && modoLote) {
+            if (itensLote.length === 0) {
+                window.appAlert("Atenção", "Adicione pelo menos um equipamento ao lote antes de salvar.", "warning");
+                tabBtns[1].click();
+                return;
+            }
+
+            const conf = await window.appConfirm('Salvar Lote', `Deseja gravar os <strong>${itensLote.length}</strong> equipamento(s) deste lote?`);
+            if (!conf) return;
+
+            const btnSave = footerColeta.querySelector('#btn-salvar-form');
+            btnSave.disabled = true;
+            btnSave.innerHTML = `<i data-lucide="loader-2" class="lucide-spin" style="width:16px;"></i> Gravando Lote...`;
+            lucide.createIcons();
+
+            try {
+                const payloads = itensLote.map(item => ({
+                    almoxarifado_id: idAlmoxOrigem,
+                    almoxarifado_destino_id: idAlmoxDestino,
+                    numero_os: os,
+                    tipo_os: inTipoOs.value,
+                    data_coleta: d,
+                    produto_consumo_id: item.produto_consumo_id,
+                    mac: item.mac,
+                    numero_serie: item.numero_serie,
+                    observacoes: obs,
+                    usuario_estoquista_id: usuarioLogadoId,
+                    status: 'PENDENTE'
+                }));
+
+                const { error } = await window.db.from('coletas_mac').insert(payloads);
+                if (error) throw error;
+
+                formFoiAlterado = false;
+                itensLote = [];
+                window.appAlert("Sucesso", `${payloads.length} equipamento(s) registrados com sucesso!`, "success");
+                modalColeta.style.display = 'none';
+                await buscarColetas();
+            } catch (e) {
+                console.error(e);
+                window.appAlert("Erro", "Falha ao gravar o lote de coletas.", "error");
+            } finally {
+                btnSave.disabled = false;
+                btnSave.innerHTML = `<i data-lucide="save" style="width: 16px; color: white;"></i> <span>Salvar Lote (${itensLote.length})</span>`;
+                lucide.createIcons();
+            }
+            return;
+        }
+
+        // ===== MODO UNITÁRIO (NOVO / EDITAR) =====
+        const prod = inProdutoId.value;
+        const mac = inMac.value.trim().toUpperCase();
+        const serie = inSerie.value.trim().toUpperCase();
+
         if (!prod || !mac) {
             window.appAlert("Atenção", "O Produto e o MAC (Aba 2) são obrigatórios.", "warning");
+            tabBtns[1].click();
+            return;
+        }
+
+        validandoMac = true;
+        const macDuplicado = await verificarMacDuplicado(mac);
+        validandoMac = false;
+        if (macDuplicado) {
+            tabBtns[1].click();
+            inMac.focus();
             return;
         }
 
@@ -576,6 +917,7 @@
 
         const btnSave = footerColeta.querySelector('#btn-salvar-form');
         btnSave.disabled = true; btnSave.innerHTML = `<i data-lucide="loader-2" class="lucide-spin" style="width:16px;"></i> Gravando...`;
+        lucide.createIcons();
 
         try {
             const payload = {
@@ -586,8 +928,8 @@
                 data_coleta: d,
                 produto_consumo_id: prod,
                 mac: mac,
-                numero_serie: inSerie.value.trim().toUpperCase(),
-                observacoes: inObs.value.trim().toUpperCase()
+                numero_serie: serie,
+                observacoes: obs
             };
 
             if (modoForm === 'novo') {
@@ -605,7 +947,11 @@
             modalColeta.style.display = 'none';
             await buscarColetas();
         } catch (e) { console.error(e); window.appAlert("Erro", "Falha ao gravar coleta.", "error"); } 
-        finally { btnSave.disabled = false; btnSave.innerHTML = `Salvar Coleta`; }
+        finally {
+            btnSave.disabled = false;
+            btnSave.innerHTML = `<i data-lucide="save" style="width: 16px; color: white;"></i> <span>Salvar Coleta</span>`;
+            lucide.createIcons();
+        }
     }
 
     // ================= MODAL DE CONSULTA (LUPA) =================

@@ -65,14 +65,14 @@
         <table class="data-table" style="width: 100%; table-layout: fixed;">
             <thead>
                 <tr>
-                    <th class="sort-col" data-col="data_coleta" style="width: 82px; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>Data <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="numero_os" style="width: 78px; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>O.S. <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="almoxarifadoDesc" style="width: 15%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>Almox. Origem <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="almoxarifadoDestinoDesc" style="width: 15%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>Almox. Destino <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="produtoDesc" style="width: 15%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>Produto / Modelo <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="mac" style="width: 13%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>MAC (Gpon) <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="numero_serie" style="width: 12%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>Nº Série <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
-                    <th class="sort-col" data-col="status" style="width: 88px; text-align: center; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;"><div>Status <i data-lucide="chevron-down" style="width:12px; opacity:0.3;"></i></div></th>
+                    <th class="sort-col" data-col="data_coleta" style="width: 82px; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white; cursor: pointer; user-select: none;"><div>Data <i data-lucide="chevron-down" class="sort-icon" style="width:12px; opacity:0.35; transition: transform 0.2s;"></i></div></th>
+                    <th class="sort-col" data-col="numero_os" style="width: 78px; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white; cursor: pointer; user-select: none;"><div>O.S. <i data-lucide="chevron-down" class="sort-icon" style="width:12px; opacity:0.35; transition: transform 0.2s;"></i></div></th>
+                    <th class="sort-col" data-col="almoxarifadoDesc" style="width: 15%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white; cursor: pointer; user-select: none;"><div>Almox. Origem <i data-lucide="chevron-down" class="sort-icon" style="width:12px; opacity:0.35; transition: transform 0.2s;"></i></div></th>
+                    <th class="sort-col" data-col="almoxarifadoDestinoDesc" style="width: 15%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white; cursor: pointer; user-select: none;"><div>Almox. Destino <i data-lucide="chevron-down" class="sort-icon" style="width:12px; opacity:0.35; transition: transform 0.2s;"></i></div></th>
+                    <th class="sort-col" data-col="produtoDesc" style="width: 15%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white; cursor: pointer; user-select: none;"><div>Produto / Modelo <i data-lucide="chevron-down" class="sort-icon" style="width:12px; opacity:0.35; transition: transform 0.2s;"></i></div></th>
+                    <th class="sort-col" data-col="mac" style="width: 13%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white; cursor: pointer; user-select: none;"><div>MAC (Gpon) <i data-lucide="chevron-down" class="sort-icon" style="width:12px; opacity:0.35; transition: transform 0.2s;"></i></div></th>
+                    <th class="sort-col" data-col="numero_serie" style="width: 12%; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white; cursor: pointer; user-select: none;"><div>Nº Série <i data-lucide="chevron-down" class="sort-icon" style="width:12px; opacity:0.35; transition: transform 0.2s;"></i></div></th>
+                    <th class="sort-col" data-col="status" style="width: 88px; text-align: center; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white; cursor: pointer; user-select: none;"><div>Status <i data-lucide="chevron-down" class="sort-icon" style="width:12px; opacity:0.35; transition: transform 0.2s;"></i></div></th>
                     <th style="text-align: center; width: 105px; padding: 0.8rem 0.5rem; background: var(--cnx-blue); color: white;">Ações</th>
                 </tr>
             </thead>
@@ -82,11 +82,11 @@
         </table>
     </div>
 
-    <!-- MODAL PRINCIPAL: FORMULÁRIO UNITÁRIO -->
+    <!-- MODAL PRINCIPAL: FORMULÁRIO UNITÁRIO / LOTE (ALTURA FIXA) -->
     <div class="modal-overlay" id="modal-coleta" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); z-index: 9999; align-items: center; justify-content: center; padding: 1rem;">
-        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 800px; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden;">
+        <div class="modal-box" style="background: white; border-radius: 8px; width: 100%; max-width: 860px; height: 520px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden;">
             
-            <div class="modal-header" style="background: var(--cnx-blue); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+            <div class="modal-header" style="background: var(--cnx-blue); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
                 <h3 id="modal-titulo-coleta" style="margin: 0; color: white; font-size: 1.1rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
                     <i data-lucide="cpu" style="color: var(--cnx-orange); width: 20px;"></i> <span>Registro de Coleta de MAC</span>
                 </h3>
@@ -101,12 +101,15 @@
                 <button class="tab-form-btn active" data-target="form-tab-dados" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: var(--cnx-blue); border-bottom: 2px solid var(--cnx-orange); cursor: pointer; display: flex; align-items: center; gap: 6px;"><i data-lucide="file-text" style="width: 16px;"></i> 1 - Dados Básicos</button>
                 <button class="tab-form-btn" data-target="form-tab-equip" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; display: flex; align-items: center; gap: 6px;"><i data-lucide="router" style="width: 16px;"></i> 2 - Equipamento</button>
                 <button class="tab-form-btn" data-target="form-tab-obs" style="padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; display: flex; align-items: center; gap: 6px;"><i data-lucide="message-square" style="width: 16px;"></i> 3 - Observações</button>
+                <button class="tab-form-btn" id="tab-btn-lote" data-target="form-tab-lote" style="display: none; padding: 0.8rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 700; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; align-items: center; gap: 6px;">
+                    <i data-lucide="layers" style="width: 16px;"></i> 4 - Lote <span id="badge-qtd-lote" style="background: var(--cnx-orange); color: white; padding: 1px 7px; border-radius: 99px; font-size: 0.7rem; font-weight: 800;">0</span>
+                </button>
             </div>
 
-            <div class="modal-content-scroll" style="padding: 1.5rem; flex: 1; overflow-y: auto; background: white;">
+            <div class="modal-content-scroll" style="padding: 1.5rem; flex: 1; min-height: 0; overflow: hidden; background: white; display: flex; flex-direction: column;">
                 
                 <!-- ABA 1: DADOS BÁSICOS -->
-                <div id="form-tab-dados" class="tab-form-content" style="display: block;">
+                <div id="form-tab-dados" class="tab-form-content" style="display: block; height: 100%; overflow-y: auto;">
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div class="form-group">
                             <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Data da Coleta <span style="color:red;">*</span></label>
@@ -148,10 +151,19 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Opção discreta de Coleta em Lote com hint -->
+                    <div id="wrapper-chk-lote" style="margin-top: 1.25rem; display: flex; align-items: center;">
+                        <label title="Permite bipar vários equipamentos para os mesmos almoxarifados e salvar tudo de uma vez." style="display: inline-flex; align-items: center; gap: 7px; cursor: pointer; font-size: 0.78rem; font-weight: 700; color: #475569; margin: 0;">
+                            <input type="checkbox" id="coleta-modo-lote" style="width: 15px; height: 15px; accent-color: var(--cnx-orange); cursor: pointer;">
+                            <span>Coleta em lote</span>
+                            <i data-lucide="info" style="width: 13px; height: 13px; color: #94a3b8;"></i>
+                        </label>
+                    </div>
                 </div>
 
                 <!-- ABA 2: EQUIPAMENTO -->
-                <div id="form-tab-equip" class="tab-form-content" style="display: none;">
+                <div id="form-tab-equip" class="tab-form-content" style="display: none; height: 100%; overflow-y: auto;">
                     
                     <div class="form-group" style="margin-bottom: 1rem;">
                         <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Produto / Modelo <span style="color:red;">*</span></label>
@@ -174,19 +186,59 @@
                             <input type="text" id="coleta-serie" class="input-standard input-upper" placeholder="Digite ou bipe o SN..." style="width: 100%; padding: 0.6rem; border: 1px solid #fdba74; border-radius: 4px; font-weight: 800; color: #ea580c;">
                         </div>
                     </div>
+
+                    <!-- Ação exclusiva do Modo Lote -->
+                    <div id="wrapper-acao-lote" style="display: none; margin-top: 1.2rem; padding-top: 1rem; border-top: 1px dashed #cbd5e1; align-items: center; justify-content: space-between; gap: 12px;">
+                        <span style="font-size: 0.72rem; color: #64748b;">Dica: ao bipar ou teclar <strong>Enter</strong> no Nº de Série, o item é adicionado automaticamente ao lote.</span>
+                        <button type="button" id="btn-add-item-lote" style="background: var(--cnx-orange); color: white; border: none; padding: 0.55rem 1.1rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; cursor: pointer; flex-shrink: 0;">
+                            <i data-lucide="plus-circle" style="width: 16px;"></i> <span>Adicionar ao Lote</span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- ABA 3: OBSERVAÇÕES -->
-                <div id="form-tab-obs" class="tab-form-content" style="display: none;">
+                <div id="form-tab-obs" class="tab-form-content" style="display: none; height: 100%; overflow-y: auto;">
                     <div class="form-group">
                         <label style="font-size: 0.7rem; font-weight: 800; color: var(--cnx-blue); text-transform: uppercase;">Observações Adicionais</label>
-                        <textarea id="coleta-obs" class="input-standard input-upper" rows="4" placeholder="Detalhes, estado físico do equipamento, motivos, etc..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; outline: none; resize: vertical;"></textarea>
+                        <textarea id="coleta-obs" class="input-standard input-upper" rows="6" placeholder="Detalhes, estado físico do equipamento, motivos, etc..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px; outline: none; resize: vertical;"></textarea>
+                    </div>
+                </div>
+
+                <!-- ABA 4: LOTE DE MACS -->
+                <div id="form-tab-lote" class="tab-form-content" style="display: none; height: 100%; overflow: hidden;">
+                    <div style="display: flex; flex-direction: column; height: 100%;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; flex-shrink: 0;">
+                            <div>
+                                <h4 style="margin: 0; font-size: 0.9rem; color: var(--cnx-blue);">Equipamentos no Lote</h4>
+                                <span style="font-size: 0.7rem; color: #64748b;">Todos os itens abaixo serão salvos com os almoxarifados definidos na Aba 1.</span>
+                            </div>
+                            <button type="button" id="btn-limpar-lote-modal" style="background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.72rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                                <i data-lucide="trash-2" style="width: 14px;"></i> Limpar Lote
+                            </button>
+                        </div>
+
+                        <div class="table-scroll-wrapper" style="flex: 1; min-height: 0; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 6px;">
+                            <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.78rem;">
+                                <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 5; box-shadow: 0 1px 0 #cbd5e1;">
+                                    <tr>
+                                        <th style="padding: 0.55rem 0.6rem; width: 40px; text-align: center; color: #475569;">#</th>
+                                        <th style="padding: 0.55rem 0.6rem; color: #475569;">Produto / Modelo</th>
+                                        <th style="padding: 0.55rem 0.6rem; color: #475569;">MAC (Gpon)</th>
+                                        <th style="padding: 0.55rem 0.6rem; color: #475569;">Nº de Série</th>
+                                        <th style="padding: 0.55rem 0.6rem; width: 60px; text-align: center; color: #475569;">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-lote-coleta">
+                                    <tr><td colspan="5" style="text-align: center; padding: 1.8rem; color: #94a3b8;">Nenhum equipamento adicionado ao lote ainda.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
             </div>
             
-            <div class="modal-footer" id="modal-coleta-footer" style="padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px; background: #f8fafc;">
+            <div class="modal-footer" id="modal-coleta-footer" style="padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px; background: #f8fafc; flex-shrink: 0;">
                 <!-- Injetado via JS -->
             </div>
         </div>
